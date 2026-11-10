@@ -5,6 +5,7 @@ mod activity;
 mod add;
 mod calendar;
 mod common;
+mod green;
 mod images;
 mod movies;
 mod settings;
@@ -79,11 +80,16 @@ pub struct App {
     quitting_for_update: bool,
     pub restore_pending: bool,
     pub first_run: Option<common::FirstRun>,
+    /// Box of X: a page is open (false = the home screen with the orb).
+    pub green_in_page: bool,
+    /// Box of X: highlighted menu entry on the home screen.
+    pub green_cursor: usize,
 }
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, core: Core, incoming: Receiver<Incoming>, start_hidden: bool, startup_notice: Option<String>) -> Self {
         configure_fonts(&cc.egui_ctx);
+        ff::set_theme(ff::Theme::from_key(&core.cfg().theme));
         widgets::init_icons(&cc.egui_ctx);
         ff::apply_style(&cc.egui_ctx);
         let repaint_ctx = cc.egui_ctx.clone();
@@ -124,6 +130,8 @@ impl App {
             quitting_for_update: false,
             restore_pending: false,
             first_run,
+            green_in_page: false,
+            green_cursor: 0,
             core,
         }
     }
@@ -203,7 +211,44 @@ impl App {
         (format!("{} movies · {} downloading · {} missing", lib.movies.len(), dl, lib.missing_count()), false)
     }
 
+    /// The current page's contents; shared by both themes' layouts.
+    pub(crate) fn render_page_body(&mut self, ui: &mut egui::Ui) {
+        match self.page {
+            Page::Movies => {
+                if self.detail.is_some() {
+                    self.page_detail(ui)
+                } else {
+                    self.page_movies(ui)
+                }
+            }
+            Page::Add => self.page_add(ui),
+            Page::Discover => self.page_discover(ui),
+            Page::Collections => self.page_collections(ui),
+            Page::Calendar => self.page_calendar(ui),
+            Page::Activity => self.page_activity(ui),
+            Page::Wanted => self.page_wanted(ui),
+            Page::Settings => self.page_settings(ui),
+            Page::System => self.page_system(ui),
+        }
+    }
+
+    /// Switches the look when the Theme setting changed. Switching to Box of X
+    /// keeps you on the page you were on (Settings) instead of the home screen;
+    /// done once here, never per frame, so BACK still works afterwards.
+    fn sync_theme(&mut self, ctx: &egui::Context) {
+        let want = ff::Theme::from_key(&self.cfg.theme);
+        if want != ff::theme() {
+            ff::set_theme(want);
+            ff::apply_style(ctx);
+            self.green_in_page = true;
+            self.menu_touched = true;
+        }
+    }
+
     fn layout(&mut self, ui: &mut egui::Ui) {
+        if ff::is_green() {
+            return self.green_layout(ui);
+        }
         let full = ui.max_rect();
         let gap = 12.0;
         let side_w = 220.0_f32.min(full.width() * 0.28);
@@ -240,22 +285,22 @@ impl App {
         let advanced = self.cfg.advanced_mode;
         let mut go_wanted = false;
         ff::window_at(ui, info, "info", |ui| {
-            info_row(ui, "Time", &time, TEXT);
-            info_row(ui, "Movies", &movies.to_string(), TEXT);
+            info_row(ui, "Time", &time, TEXT());
+            info_row(ui, "Movies", &movies.to_string(), TEXT());
             let r = ui.horizontal(|ui| {
                 ff::stat_label(ui, "Missing");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ff::title(ui, &missing.to_string(), 17.0, if missing > 0 { ff::BAD } else { TEXT });
+                    ff::title(ui, &missing.to_string(), 17.0, if missing > 0 { ff::BAD() } else { TEXT() });
                 });
             });
             if r.response.interact(egui::Sense::click()).on_hover_text("Open Wanted › Missing").clicked() {
                 go_wanted = true;
             }
-            info_row(ui, "Disk", &if free > 0 { crate::decision::human_size(free) } else { "—".into() }, TEXT);
+            info_row(ui, "Disk", &if free > 0 { crate::decision::human_size(free) } else { "—".into() }, TEXT());
             ui.add_space(4.0);
             let label = if advanced { "MODE: ADVANCED" } else { "MODE: SIMPLE" };
             mode_clicked = ui
-                .add_sized([ui.available_width(), 26.0], egui::Button::new(RichText::new(label).color(LABEL).strong()))
+                .add_sized([ui.available_width(), 26.0], egui::Button::new(RichText::new(label).color(LABEL()).strong()))
                 .on_hover_text("Simple shows the settings most people need. Advanced shows everything Radarr has.")
                 .clicked();
         });
@@ -274,27 +319,11 @@ impl App {
                 let badge = if warn { ff::Badge::Warn } else { ff::Badge::Good };
                 ff::badge(ui, badge, 18.0);
                 ui.add_space(4.0);
-                ff::title(ui, &status, 16.0, if warn { ff::WARN } else { TEXT });
+                ff::title(ui, &status, 16.0, if warn { ff::WARN() } else { TEXT() });
             });
         });
 
-        ff::window_at(ui, main, "main", |ui| match self.page {
-            Page::Movies => {
-                if self.detail.is_some() {
-                    self.page_detail(ui)
-                } else {
-                    self.page_movies(ui)
-                }
-            }
-            Page::Add => self.page_add(ui),
-            Page::Discover => self.page_discover(ui),
-            Page::Collections => self.page_collections(ui),
-            Page::Calendar => self.page_calendar(ui),
-            Page::Activity => self.page_activity(ui),
-            Page::Wanted => self.page_wanted(ui),
-            Page::Settings => self.page_settings(ui),
-            Page::System => self.page_system(ui),
-        });
+        ff::window_at(ui, main, "main", |ui| self.render_page_body(ui));
 
         let ctx = ui.ctx().clone();
         self.show_dialog(&ctx);
@@ -326,7 +355,7 @@ impl App {
                     ui.set_max_width(380.0);
                     ff::window(ui, |ui| {
                         ui.set_width(340.0);
-                        ui.add(egui::Label::new(RichText::new(m).color(TEXT).strong()).wrap());
+                        ui.add(egui::Label::new(RichText::new(m).color(TEXT()).strong()).wrap());
                     })
                 });
             y += area.response.rect.height() + 10.0;
@@ -354,16 +383,21 @@ impl App {
         }
     }
 
+    /// Is the update window showing?
+    pub(crate) fn update_prompt_open(&self) -> bool {
+        use crate::updater::State;
+        match self.updater.state() {
+            State::Available(_) => !self.updater.dismissed.load(std::sync::atomic::Ordering::SeqCst),
+            State::Downloading(_) | State::Restarting | State::Failed(_) => true,
+            _ => false,
+        }
+    }
+
     fn update_prompt(&mut self, ctx: &egui::Context) {
         use crate::updater::State;
         use std::sync::atomic::Ordering::SeqCst;
         let state = self.updater.state();
-        let show = match &state {
-            State::Available(_) => !self.updater.dismissed.load(SeqCst),
-            State::Downloading(_) | State::Restarting | State::Failed(_) => true,
-            _ => false,
-        };
-        if !show {
+        if !self.update_prompt_open() {
             return;
         }
         let mut install = None;
@@ -373,24 +407,24 @@ impl App {
                 ui.set_width(460.0);
                 match &state {
                     State::Available(r) => {
-                        ff::title(ui, "Update available", 24.0, TEXT);
+                        ff::title(ui, "Update available", 24.0, TEXT());
                         ff::divider(ui);
                         ui.horizontal(|ui| {
                             ff::stat_label(ui, "CURRENT");
                             ui.label(RichText::new(format!("v{}", crate::updater::APP_VERSION)).strong());
                             ui.add_space(16.0);
                             ff::stat_label(ui, "NEW");
-                            ui.label(RichText::new(format!("v{}", r.version)).strong().color(ff::GOOD));
+                            ui.label(RichText::new(format!("v{}", r.version)).strong().color(ff::GOOD()));
                         });
                         if !r.notes.trim().is_empty() {
                             ui.add_space(6.0);
                             egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                                ui.add(egui::Label::new(RichText::new(r.notes.trim()).color(TEXT_DIM)).wrap());
+                                ui.add(egui::Label::new(RichText::new(r.notes.trim()).color(TEXT_DIM())).wrap());
                             });
                         }
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
-                            if ui.button(RichText::new("Update now").color(ff::GOOD).strong()).clicked() {
+                            if ui.button(RichText::new("Update now").color(ff::GOOD()).strong()).clicked() {
                                 install = Some(r.clone());
                             }
                             if ui.button("Later").clicked() {
@@ -402,19 +436,19 @@ impl App {
                         });
                     }
                     State::Downloading(r) => {
-                        ff::title(ui, &format!("Downloading v{}", r.version), 22.0, TEXT);
+                        ff::title(ui, &format!("Downloading v{}", r.version), 22.0, TEXT());
                         let done = self.updater.downloaded.load(SeqCst);
                         let total = self.updater.total.load(SeqCst).max(1);
-                        ff::stat_bar(ui, done as f32 / total as f32, 420.0, ff::LABEL, egui::Color32::WHITE);
+                        ff::stat_bar(ui, done as f32 / total as f32, 420.0, ff::LABEL(), egui::Color32::WHITE);
                         ui.label(dim(&format!("{} of {}", crate::decision::human_size(done), crate::decision::human_size(total))));
                     }
                     State::Restarting => {
-                        ff::title(ui, "Installing update…", 22.0, TEXT);
+                        ff::title(ui, "Installing update…", 22.0, TEXT());
                         ui.label(dim("Turks will reopen in a moment."));
                     }
                     State::Failed(e) => {
-                        ff::title(ui, "Update didn't work", 22.0, ff::BAD);
-                        ui.add(egui::Label::new(RichText::new(e).color(TEXT)).wrap());
+                        ff::title(ui, "Update didn't work", 22.0, ff::BAD());
+                        ui.add(egui::Label::new(RichText::new(e).color(TEXT())).wrap());
                         if ui.button("OK").clicked() {
                             later = true;
                         }
@@ -470,8 +504,12 @@ impl eframe::App for App {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        self.sync_theme(&ctx);
+        // Box of X paints its own background (fade and grid) behind the panel.
+        let fill = if ff::is_green() { egui::Color32::TRANSPARENT } else { ff::BACKDROP() };
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(ff::BACKDROP).inner_margin(egui::Margin::same(14)))
+            .frame(egui::Frame::new().fill(fill).inner_margin(egui::Margin::same(14)))
             .show(ui, |ui| self.layout(ui));
     }
 
@@ -503,6 +541,12 @@ fn configure_fonts(ctx: &egui::Context) {
     if let Some(m) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
         m.push("Inter".to_owned());
     }
+    // Blocky display face for the Box of X theme.
+    fonts.font_data.insert("Orbitron".to_owned(), Arc::new(egui::FontData::from_static(include_bytes!("../../resources/Orbitron-800.ttf"))));
+    fonts.families.insert(
+        egui::FontFamily::Name("display".into()),
+        vec!["Orbitron".to_owned(), "Nunito".to_owned(), "Inter".to_owned(), "Hack".to_owned()],
+    );
     ctx.set_fonts(fonts);
 }
 
@@ -528,5 +572,5 @@ pub fn open_url(url: &str) {
 }
 
 pub fn dim(text: &str) -> RichText {
-    RichText::new(text).color(TEXT_DIM)
+    RichText::new(text).color(TEXT_DIM())
 }

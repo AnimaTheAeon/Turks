@@ -81,7 +81,7 @@ impl App {
 
     pub fn page_add(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            ff::title(ui, "Add Movie", 26.0, TEXT);
+            ff::title(ui, "Add Movie", 26.0, TEXT());
             ui.add_space(10.0);
             if w::pill(ui, "Search", self.add.tab == 0).clicked() {
                 self.add.tab = 0;
@@ -92,7 +92,7 @@ impl App {
         });
         ff::divider(ui);
         if !self.cfg.tmdb_ready() {
-            ui.label(RichText::new("Add a TMDb API key in Settings › General first. Turks uses it to look up movies.").color(WARN));
+            ui.label(RichText::new("Add a TMDb API key in Settings › General first. Turks uses it to look up movies.").color(WARN()));
             return;
         }
         if self.add.tab == 1 {
@@ -127,7 +127,7 @@ impl App {
             self.add.searching = Some(common::spawn(ui.ctx(), move || t.search(&term)));
         }
         if let Some(e) = &self.add.error {
-            ui.label(RichText::new(e).color(BAD));
+            ui.label(RichText::new(e).color(BAD()));
         }
         ui.add_space(6.0);
         let hits = self.add.results.clone();
@@ -148,29 +148,29 @@ impl App {
                     ui.add_space(8.0);
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
-                            ff::title(ui, &h.title, 20.0, TEXT);
+                            ff::title(ui, &h.title, 20.0, TEXT());
                             if h.year > 0 {
-                                ui.label(RichText::new(format!("({})", h.year)).color(TEXT_DIM));
+                                ui.label(RichText::new(format!("({})", h.year)).color(TEXT_DIM()));
                             }
                             if h.vote > 0.0 {
-                                ff::tag(ui, &format!("★ {:.1}", h.vote), WARN);
+                                ff::tag(ui, &format!("★ {:.1}", h.vote), WARN());
                             }
                         });
                         if !h.original_title.is_empty() && h.original_title != h.title {
-                            ui.label(RichText::new(&h.original_title).color(TEXT_DIM).size(12.0));
+                            ui.label(RichText::new(&h.original_title).color(TEXT_DIM()).size(12.0));
                         }
                         let ov: String = h.overview.chars().take(260).collect();
-                        ui.add(egui::Label::new(RichText::new(if h.overview.len() > 260 { format!("{ov}…") } else { ov }).color(TEXT).size(13.0)).wrap());
+                        ui.add(egui::Label::new(RichText::new(if h.overview.len() > 260 { format!("{ov}…") } else { ov }).color(TEXT()).size(13.0)).wrap());
                         ui.horizontal(|ui| {
                             match existing {
                                 Some(mid) => {
-                                    ff::tag(ui, "IN LIBRARY", GOOD);
+                                    ff::tag(ui, "IN LIBRARY", GOOD());
                                     if ui.small_button("Open").clicked() {
                                         open = Some(mid);
                                     }
                                 }
                                 None => {
-                                    if ui.button(RichText::new("Add…").color(GOOD).strong()).clicked() {
+                                    if ui.button(RichText::new("Add…").color(GOOD()).strong()).clicked() {
                                         add = Some(h.clone());
                                     }
                                 }
@@ -206,7 +206,7 @@ impl App {
         let close = common::modal(ctx, "add-movie", 560.0, |ui| {
             common::heading(ui, &format!("{}{}", s.hit.title, if s.hit.year > 0 { format!(" ({})", s.hit.year) } else { String::new() }));
             if lib.root_folders.is_empty() {
-                ui.label(RichText::new("Add a root folder in Settings › Media Management first.").color(WARN));
+                ui.label(RichText::new("Add a root folder in Settings › Media Management first.").color(WARN()));
             }
             w::row(ui, "Root folder", "Where the movie's folder will be made.", |ui| {
                 common::root_combo(ui, "add-root", &lib, &mut s.opts.root_folder);
@@ -224,13 +224,13 @@ impl App {
             common::tags_editor(ui, "add-tags", &self.core, &mut s.opts.tags, &mut s.new_tag);
             ui.checkbox(&mut s.opts.search, "Start searching for it right away");
             if let Some(e) = &s.error {
-                ui.label(RichText::new(e).color(BAD));
+                ui.label(RichText::new(e).color(BAD()));
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 let busy = s.adding.is_some();
                 let ok = !s.opts.root_folder.is_empty() && s.opts.quality_profile_id != 0;
-                if ui.add_enabled(ok && !busy, egui::Button::new(RichText::new(if busy { "Adding…" } else { "Add movie" }).color(GOOD).strong())).clicked() {
+                if ui.add_enabled(ok && !busy, egui::Button::new(RichText::new(if busy { "Adding…" } else { "Add movie" }).color(GOOD()).strong())).clicked() {
                     result = Some(true);
                 }
                 if ui.button("Cancel").clicked() {
@@ -290,7 +290,7 @@ impl App {
             }
         });
         if lib.root_folders.is_empty() {
-            ui.label(RichText::new("Add a root folder in Settings › Media Management first.").color(WARN));
+            ui.label(RichText::new("Add a root folder in Settings › Media Management first.").color(WARN()));
             return;
         }
         if self.add.unmapped.is_empty() {
@@ -303,7 +303,7 @@ impl App {
             common::availability_combo(ui, "li-avail", &mut self.add.availability);
             ui.checkbox(&mut self.add.monitor, "Monitored");
             let n = self.add.unmapped.iter().filter(|r| r.include && !r.matches.is_empty()).count();
-            if ui.add_enabled(n > 0 && !self.add.importing, egui::Button::new(RichText::new(format!("Import {n} movies")).color(GOOD).strong())).clicked() {
+            if ui.add_enabled(n > 0 && !self.add.importing, egui::Button::new(RichText::new(format!("Import {n} movies")).color(GOOD()).strong())).clicked() {
                 let core = self.core.clone();
                 let rows: Vec<(i64, String)> = self.add.unmapped.iter().filter(|r| r.include && !r.matches.is_empty()).map(|r| (r.matches[r.chosen].tmdb_id, r.folder.path.display().to_string())).collect();
                 let opts = AddOptions {
@@ -338,15 +338,15 @@ impl App {
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             egui::Grid::new("li-grid").striped(true).spacing([12.0, 6.0]).show(ui, |ui| {
                 for h in ["", "Folder", "Files", "Match on TMDb"] {
-                    ff::title(ui, h, 13.0, LABEL);
+                    ff::title(ui, h, 13.0, LABEL());
                 }
                 ui.end_row();
                 for (i, r) in self.add.unmapped.iter_mut().enumerate() {
                     ui.add_enabled(!r.matches.is_empty(), egui::Checkbox::without_text(&mut r.include));
-                    ui.label(RichText::new(&r.folder.name).color(TEXT));
+                    ui.label(RichText::new(&r.folder.name).color(TEXT()));
                     ui.label(r.folder.video_count.to_string());
                     if r.matches.is_empty() {
-                        ui.label(RichText::new("No match found").color(BAD));
+                        ui.label(RichText::new("No match found").color(BAD()));
                     } else {
                         let sel = &r.matches[r.chosen];
                         egui::ComboBox::from_id_salt(("li-match", i)).selected_text(format!("{} ({})", sel.title, sel.year)).width(300.0).show_ui(ui, |ui| {
@@ -384,7 +384,7 @@ impl App {
         ];
         let mut load = None;
         ui.horizontal_wrapped(|ui| {
-            ff::title(ui, "Discover", 26.0, TEXT);
+            ff::title(ui, "Discover", 26.0, TEXT());
             ui.add_space(10.0);
             for (k, l) in sources {
                 if w::pill(ui, l, self.discover.source == k).clicked() {
@@ -398,7 +398,7 @@ impl App {
         });
         ff::divider(ui);
         if !self.cfg.tmdb_ready() {
-            ui.label(RichText::new("Add a TMDb API key in Settings › General first.").color(WARN));
+            ui.label(RichText::new("Add a TMDb API key in Settings › General first.").color(WARN()));
             return;
         }
         if self.discover.source.is_empty() && self.discover.loading.is_none() {
@@ -435,7 +435,7 @@ impl App {
             }));
         }
         if let Some(e) = &self.discover.error {
-            ui.label(RichText::new(e).color(BAD));
+            ui.label(RichText::new(e).color(BAD()));
         }
         let hits: Vec<SearchHit> = self.discover.hits.iter().filter(|h| !self.discover.hide_owned || self.core.lib().movie_by_tmdb(h.tmdb_id).is_none()).cloned().collect();
         let pw = 130.0;
@@ -454,7 +454,7 @@ impl App {
                             let owned = self.core.lib().movie_by_tmdb(h.tmdb_id).map(|m| m.id);
                             let tex = self.images.remote_poster(h.tmdb_id, &h.poster_path);
                             let initials: String = h.title.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect();
-                            let resp = common::poster(ui, tex, &initials, Vec2::new(pw, ph), if owned.is_some() { GOOD } else { Color32::TRANSPARENT });
+                            let resp = common::poster(ui, tex, &initials, Vec2::new(pw, ph), if owned.is_some() { GOOD() } else { Color32::TRANSPARENT });
                             let ov: String = h.overview.chars().take(400).collect();
                             if resp.on_hover_text(format!("{} ({})\n★ {:.1}\n\n{ov}", h.title, h.year, h.vote)).clicked() {
                                 match owned {
@@ -462,8 +462,8 @@ impl App {
                                     None => add = Some(h.clone()),
                                 }
                             }
-                            ui.add(egui::Label::new(RichText::new(&h.title).color(TEXT).strong().size(13.0)).truncate());
-                            ui.label(RichText::new(if h.year > 0 { h.year.to_string() } else { "TBA".into() }).color(TEXT_DIM).size(12.0));
+                            ui.add(egui::Label::new(RichText::new(&h.title).color(TEXT()).strong().size(13.0)).truncate());
+                            ui.label(RichText::new(if h.year > 0 { h.year.to_string() } else { "TBA".into() }).color(TEXT_DIM()).size(12.0));
                         });
                         ui.add_space(gap - 8.0);
                     }
@@ -483,7 +483,7 @@ impl App {
     pub fn page_collections(&mut self, ui: &mut Ui) {
         let lib = self.core.lib().clone();
         ui.horizontal(|ui| {
-            ff::title(ui, "Collections", 26.0, TEXT);
+            ff::title(ui, "Collections", 26.0, TEXT());
             ui.add_space(10.0);
             ui.add(egui::TextEdit::singleline(&mut self.collections.search).hint_text("Find a collection").desired_width(200.0));
             if ui.button("Refresh collections").on_hover_text("Find collections your movies belong to, and add missing movies from monitored ones").clicked() {
@@ -514,12 +514,12 @@ impl App {
                     }
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
-                            ff::title(ui, &c.title, 20.0, TEXT);
-                            ff::tag(ui, &format!("{have}/{}", c.parts.len()), if have == c.parts.len() { GOOD } else { WARN });
+                            ff::title(ui, &c.title, 20.0, TEXT());
+                            ff::tag(ui, &format!("{have}/{}", c.parts.len()), if have == c.parts.len() { GOOD() } else { WARN() });
                         });
                         ui.horizontal(|ui| {
                             ff::stat_label(ui, "HP");
-                            ff::stat_bar(ui, have as f32 / c.parts.len().max(1) as f32, 220.0, Color32::from_rgb(70, 130, 230), GOOD);
+                            ff::stat_bar(ui, have as f32 / c.parts.len().max(1) as f32, 220.0, Color32::from_rgb(70, 130, 230), GOOD());
                         });
                         ui.horizontal(|ui| {
                             let mut mon = c.monitored;
@@ -557,13 +557,13 @@ impl App {
                                 match lib.movie_by_tmdb(p.tmdb_id) {
                                     Some(m) => {
                                         ff::badge(ui, if m.movie_file_id.is_some() { ff::Badge::Good } else { ff::Badge::Warn }, 14.0);
-                                        if ui.add(egui::Label::new(RichText::new(format!("{} ({})", p.title, p.year)).color(TEXT)).sense(egui::Sense::click())).clicked() {
+                                        if ui.add(egui::Label::new(RichText::new(format!("{} ({})", p.title, p.year)).color(TEXT())).sense(egui::Sense::click())).clicked() {
                                             open_movie = Some(m.id);
                                         }
                                     }
                                     None => {
                                         ff::badge(ui, ff::Badge::Bad, 14.0);
-                                        ui.label(RichText::new(format!("{} ({})", p.title, p.year)).color(TEXT_DIM));
+                                        ui.label(RichText::new(format!("{} ({})", p.title, p.year)).color(TEXT_DIM()));
                                         if ui.small_button("Add…").clicked() {
                                             add_one = Some(SearchHit { tmdb_id: p.tmdb_id, title: p.title.clone(), year: p.year, poster_path: p.poster_path.clone(), overview: p.overview.clone(), ..Default::default() });
                                         }
@@ -603,6 +603,6 @@ impl App {
         if let Some(h) = add_one {
             self.open_add_dialog(h);
         }
-        let _ = BAD;
+        let _ = BAD();
     }
 }

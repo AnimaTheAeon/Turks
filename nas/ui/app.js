@@ -224,10 +224,21 @@ function go(page, arg) {
   renderMenu();
   const main = $("#main");
   main.replaceChildren();
+  if (isGreen()) {
+    Turks.home = false;
+    document.body.classList.remove("ghome-on");
+    setGreenTitle((MENU.find((m) => m[0] === page) || [, page])[1]);
+    $("#gback-label").textContent = page === "movies" && arg ? "MOVIES" : "BACK";
+    drawGrid();
+  }
   const p = Turks.pages[page];
   if (!p) return;
-  Promise.resolve(p.render(main, Turks.arg)).catch((e) => {
-    if (e.message !== "auth" && e.message !== "down") main.replaceChildren(el("div.empty", el("h2", "Couldn't load this page"), e.message));
+  // Each visit renders into its own host, so a slow page that finishes after
+  // you've moved on writes into a detached element instead of over the new page.
+  const host = el("div.page-host");
+  main.append(host);
+  Promise.resolve(p.render(host, Turks.arg)).catch((e) => {
+    if (e.message !== "auth" && e.message !== "down") host.replaceChildren(el("div.empty", el("h2", "Couldn't load this page"), e.message));
   });
 }
 
@@ -260,6 +271,13 @@ function renderInfo() {
   $("#statusbar .badge").className = "badge " + level;
   $("#status-text").textContent = text;
   $("#status-text").className = level === "good" ? "" : level;
+  if (isGreen()) {
+    const top = `Turks v${s.version} · ${Turks.cfg && Turks.cfg.advanced_mode ? "Advanced" : "Simple"} mode · up ${clock(s.uptime_secs)}`;
+    const box = [el("span.orb" + (level === "good" ? "" : "." + level)), el("div.lines", el("div.l1", top), el("div.l2" + (level === "good" ? "" : "." + level), text))];
+    $("#gstatus").replaceChildren(...box.map((n) => n.cloneNode(true)));
+    $("#ghome-status").replaceChildren(...box);
+    $("#gmode-label").textContent = Turks.cfg && Turks.cfg.advanced_mode ? "ADVANCED" : "SIMPLE";
+  }
 }
 
 async function poll() {
@@ -304,7 +322,10 @@ function openModal({ title, body, buttons = [], size: sz = "", onclose }) {
   return { close, win, body: bodyEl, footer };
 }
 function closeModal() { while (modalStack.length) modalStack[modalStack.length - 1].close(); }
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modalStack.length) modalStack[modalStack.length - 1].close(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && modalStack.length) { modalStack[modalStack.length - 1].close(); e.preventDefault(); return; }
+  if (isGreen()) greenKey(e);
+});
 
 function confirmBox(title, text, okLabel = "OK", danger = false, extra = null) {
   return new Promise((resolve) => {
@@ -397,6 +418,141 @@ function tagPicker(ids, onchange) {
   return wrap;
 }
 
+// ---------------------------------------------------------------- Box of X theme
+
+const isGreen = () => !!(Turks.cfg && Turks.cfg.theme === "green");
+Turks.home = false;
+Turks.cursor = 0;
+
+/** Switch looks to match Turks.cfg.theme. `stay` keeps the current page open. */
+function applyTheme(stay) {
+  const green = isGreen();
+  document.body.classList.toggle("green", green);
+  if (!green) {
+    document.body.classList.remove("ghome-on");
+    Turks.home = false;
+    if (stay) go(Turks.page, Turks.arg);
+    return;
+  }
+  if (stay) { Turks.home = false; go(Turks.page, Turks.arg); } else goHome();
+  renderInfo();
+}
+
+function setGreenTitle(text) {
+  const t = $("#gtitle");
+  t.textContent = text;
+  // Long movie titles shrink to fit the bar.
+  let size = 26;
+  t.style.fontSize = size + "px";
+  while (size > 13 && t.scrollWidth > t.clientWidth) { size--; t.style.fontSize = size + "px"; }
+}
+
+function goHome() {
+  closeModal();
+  clearInterval(Turks.pageTimer);
+  Turks.home = true;
+  const i = MENU.findIndex((m) => m[0] === Turks.page);
+  Turks.cursor = i < 0 ? 0 : i;
+  document.body.classList.add("ghome-on");
+  renderHome();
+}
+
+/** Esc / mouse back: close the top-most thing first, then go home. */
+function stepBack() {
+  if (modalStack.length) return modalStack[modalStack.length - 1].close();
+  if (Turks.home) return;
+  if (Turks.page === "movies" && Turks.arg) return go("movies");
+  goHome();
+}
+
+function greenKey(e) {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+  if (typing) return; // Esc in a text box is the browser's.
+  if (Turks.home) {
+    const n = MENU.length;
+    if (e.key === "ArrowDown") Turks.cursor = (Turks.cursor + 1) % n;
+    else if (e.key === "ArrowUp") Turks.cursor = (Turks.cursor + n - 1) % n;
+    else if (e.key === "Enter") return go(MENU[Turks.cursor][0]);
+    else return;
+    e.preventDefault();
+    markCursor();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    stepBack();
+  }
+}
+
+// The mouse's side "back" button.
+for (const type of ["mousedown", "mouseup"]) {
+  window.addEventListener(type, (e) => {
+    if (e.button !== 3 || !isGreen()) return;
+    e.preventDefault();
+    if (type === "mouseup") stepBack();
+  });
+}
+
+function markCursor() { $$(".gmenu-item").forEach((x, i) => { x.classList.toggle("lit", i === Turks.cursor); $(".node", x).classList.toggle("lit", i === Turks.cursor); }); }
+
+/** Home screen: the big orb with the menu on an arc around it. */
+function renderHome() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const r = Math.max(90, Math.min(H * 0.24, W * 0.16));
+  const ox = W * 0.3, oy = H / 2 - 24;
+  const orb = $("#bigorb");
+  orb.style.cssText = `left:${ox}px;top:${oy}px;width:${2 * r}px;height:${2 * r}px;--r:${r}px`;
+  const s = r * 0.42;
+  orb.innerHTML = `<div class="shell"></div><div class="spin"></div><div class="jelly"></div><div class="core"></div>
+    <div class="lobe" style="left:${50 - 21 - 25}%;top:${50 + 12 - 15}%;width:42%;height:30%"></div>
+    <div class="lobe" style="left:${50 + 27 - 16}%;top:${50 - 5 - 22}%;width:32%;height:45%;animation-duration:9s"></div>
+    <div class="lobe" style="left:${50 + 5 - 25}%;top:${50 + 31 - 11}%;width:50%;height:22%;animation-duration:11s"></div>
+    <svg viewBox="${-r} ${-r} ${2 * r} ${2 * r}" fill="none" stroke-linecap="round">
+      <path d="M0 ${-s} C ${-s * 0.95} ${-s * 0.45}, ${-s * 0.95} ${s * 0.45}, 0 ${s} C ${s * 0.95} ${s * 0.45}, ${s * 0.95} ${-s * 0.45}, 0 ${-s}" stroke="rgba(255,255,230,.85)" stroke-width="${Math.max(2, r * 0.035)}"/>
+      <path d="M${-s * 1.15} 0 C ${-s * 0.3} ${-s * 0.32}, ${s * 0.3} ${-s * 0.32}, ${s * 1.15} 0 C ${s * 0.3} ${s * 0.32}, ${-s * 0.3} ${s * 0.32}, ${-s * 1.15} 0" stroke="rgba(255,255,230,.6)" stroke-width="${Math.max(1.5, r * 0.022)}"/>
+      <circle r="${s * 0.2}" fill="rgba(255,255,230,.88)" stroke="none"/>
+    </svg>`;
+  const n = MENU.length;
+  const rowH = Math.max(40, Math.min(66, (H - 160) / n));
+  const nodeR = Math.min(rowH * 0.42, 28);
+  const arcR = Math.max(r * 1.5, n * rowH * 0.62);
+  const tabW = Math.max(220, Math.min(460, W - ox - arcR - 140));
+  $("#gmenu").replaceChildren(...MENU.map(([key, label], i) => {
+    const dy = (i - (n - 1) / 2) * rowH;
+    const dx = Math.sqrt(Math.max(0, arcR * arcR - dy * dy));
+    const item = el("div.gmenu-item", {
+      style: { left: ox + dx - nodeR + "px", top: oy + dy - rowH * 0.38 + "px", height: rowH * 0.76 + "px" },
+      onmousemove: () => { if (Turks.cursor !== i) { Turks.cursor = i; markCursor(); } },
+      onclick: () => go(key),
+    },
+      el("span.node", { style: { width: 2 * nodeR + "px", height: 2 * nodeR + "px" } }),
+      el("span.wire"),
+      el("span.gtab", { style: { width: tabW + "px", fontSize: Math.min(rowH * 0.42, 25) + "px" } }, label));
+    return item;
+  }));
+  markCursor();
+  $("#gmode").style.left = Math.min(W * 0.46, 600) + 50 + "px";
+  drawGrid(ox, oy);
+  renderInfo();
+}
+
+/** Background: dark green fade with faint rings and spokes around a hub. */
+function drawGrid(hx, hy) {
+  if (!isGreen()) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  if (hx === undefined) { hx = W * 0.2; hy = H * 0.15; }
+  const far = Math.max(W, H) * 1.1;
+  let rings = "", spokes = "";
+  for (let k = 1; k <= 6; k++) { const rx = 230 * k * 0.85 + 60; rings += `<ellipse cx="${hx}" cy="${hy}" rx="${rx}" ry="${rx * 0.92}"/>`; }
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2 + 0.2; spokes += `<line x1="${hx}" y1="${hy}" x2="${hx + Math.cos(a) * far}" y2="${hy + Math.sin(a) * far}"/>`; }
+  const g = $("#gbg");
+  g.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  g.innerHTML = `<defs><radialGradient id="gfade" gradientUnits="userSpaceOnUse" cx="${hx}" cy="${hy}" r="${far}">
+      <stop offset="0" stop-color="#165c10"/><stop offset=".25" stop-color="#0a3608"/><stop offset=".55" stop-color="#041c04"/><stop offset="1" stop-color="#010a01"/></radialGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#gfade)"/>
+    <g fill="none" stroke="rgba(120,220,60,0.13)" stroke-width="1.4">${rings}${spokes}</g>`;
+}
+
+window.addEventListener("resize", () => { if (!isGreen()) return; if (Turks.home) renderHome(); else { drawGrid(); setGreenTitle($("#gtitle").textContent); } });
+
 // ---------------------------------------------------------------- start
 
 Turks.start = async function () {
@@ -415,5 +571,12 @@ Turks.start = async function () {
   await poll();
   startPolling();
   setInterval(() => { if (Turks.state) { Turks.state.uptime_secs++; $("#i-time").textContent = clock(Turks.state.uptime_secs); } }, 1000);
-  go(Turks.cfg.tmdb_api_key ? "movies" : "settings", Turks.cfg.tmdb_api_key ? null : "general");
+  $("#gback").onclick = () => stepBack();
+  $("#genter").onclick = () => go(MENU[Turks.cursor][0]);
+  $("#gmode").onclick = async () => { await saveConfig({ advanced_mode: !Turks.cfg.advanced_mode }); renderInfo(); };
+  $("#gstatus").onclick = () => go("system");
+  $("#ghome-status").onclick = () => go("system");
+  if (!Turks.cfg.tmdb_api_key) { go("settings", "general"); applyTheme(true); }
+  else if (isGreen()) { Turks.page = "movies"; applyTheme(false); }
+  else go("movies");
 };

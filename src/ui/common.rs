@@ -41,7 +41,7 @@ pub fn modal(ctx: &egui::Context, id: &str, width: f32, add: impl FnOnce(&mut Ui
 }
 
 pub fn heading(ui: &mut Ui, text: &str) {
-    ff::title(ui, text, 24.0, TEXT);
+    ff::title(ui, text, 24.0, TEXT());
     ff::divider(ui);
 }
 
@@ -58,25 +58,26 @@ pub fn poster(ui: &mut Ui, tex: Option<egui::TextureId>, initials: &str, size: V
         }
         None => {
             let mut mesh = egui::Mesh::default();
-            let (a, b) = (Color32::from_rgb(46, 86, 190), Color32::from_rgb(6, 8, 58));
-            mesh.colored_vertex(rect.left_top(), a);
-            mesh.colored_vertex(rect.right_top(), Color32::from_rgb(24, 40, 146));
-            mesh.colored_vertex(rect.right_bottom(), b);
-            mesh.colored_vertex(rect.left_bottom(), Color32::from_rgb(18, 30, 120));
+            // Opaque version of the theme's window gradient.
+            let o = |c: Color32| Color32::from_rgb(c.r(), c.g(), c.b());
+            mesh.colored_vertex(rect.left_top(), o(ff::WIN_TL()));
+            mesh.colored_vertex(rect.right_top(), o(ff::WIN_TR()));
+            mesh.colored_vertex(rect.right_bottom(), o(ff::WIN_BR()));
+            mesh.colored_vertex(rect.left_bottom(), o(ff::WIN_BL()));
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(0, 2, 3);
             painter.add(egui::Shape::mesh(mesh));
-            ff::shadow_text(ui, rect.center(), egui::Align2::CENTER_CENTER, initials, egui::FontId::proportional((size.x * 0.28).max(14.0)), TEXT);
+            ff::shadow_text(ui, rect.center(), egui::Align2::CENTER_CENTER, initials, egui::FontId::proportional((size.x * 0.28).max(14.0)), TEXT());
         }
     }
     let painter = ui.painter();
-    painter.rect_stroke(rect, egui::CornerRadius::same(4), egui::Stroke::new(2.0, ff::BORDER_LIGHT), egui::StrokeKind::Inside);
+    painter.rect_stroke(rect, egui::CornerRadius::same(4), egui::Stroke::new(2.0, ff::BORDER_LIGHT()), egui::StrokeKind::Inside);
     if accent != Color32::TRANSPARENT {
         let bar = egui::Rect::from_min_size(egui::pos2(rect.left() + 2.0, rect.bottom() - 6.0), Vec2::new(rect.width() - 4.0, 4.0));
         painter.rect_filled(bar, egui::CornerRadius::same(1), accent);
     }
     if resp.hovered() {
-        painter.rect_stroke(rect.expand(2.0), egui::CornerRadius::same(5), egui::Stroke::new(2.0, LABEL), egui::StrokeKind::Outside);
+        painter.rect_stroke(rect.expand(2.0), egui::CornerRadius::same(5), egui::Stroke::new(2.0, LABEL()), egui::StrokeKind::Outside);
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
     resp
@@ -107,12 +108,12 @@ impl MovieState {
     }
     pub fn color(self) -> Color32 {
         match self {
-            Self::Downloaded => GOOD,
-            Self::Downloading => WARN,
-            Self::Missing => BAD,
-            Self::NotAvailable => LABEL,
+            Self::Downloaded => GOOD(),
+            Self::Downloading => WARN(),
+            Self::Missing => BAD(),
+            Self::NotAvailable => LABEL(),
             Self::Unmonitored => Color32::from_rgb(150, 156, 180),
-            Self::CutoffUnmet => WARN,
+            Self::CutoffUnmet => WARN(),
         }
     }
 }
@@ -200,7 +201,7 @@ pub fn tags_editor(ui: &mut Ui, id: &str, core: &crate::core::Core, tags: &mut V
         let mut remove = None;
         for t in tags.iter() {
             let label = lib.tag_label(*t);
-            if ui.add(egui::Button::new(RichText::new(format!("{label}  ×")).color(LABEL).size(13.0)).corner_radius(10.0)).on_hover_text("Remove tag").clicked() {
+            if ui.add(egui::Button::new(RichText::new(format!("{label}  ×")).color(LABEL()).size(13.0)).corner_radius(10.0)).on_hover_text("Remove tag").clicked() {
                 remove = Some(*t);
             }
         }
@@ -243,13 +244,13 @@ pub fn result_line(ui: &mut Ui, r: &Option<Result<String, String>>) {
         Some(Ok(m)) => {
             ui.horizontal(|ui| {
                 ff::badge(ui, ff::Badge::Good, 16.0);
-                ui.add(egui::Label::new(RichText::new(m).color(GOOD)).wrap());
+                ui.add(egui::Label::new(RichText::new(m).color(GOOD())).wrap());
             });
         }
         Some(Err(e)) => {
             ui.horizontal(|ui| {
                 ff::badge(ui, ff::Badge::Bad, 16.0);
-                ui.add(egui::Label::new(RichText::new(e).color(BAD)).wrap());
+                ui.add(egui::Label::new(RichText::new(e).color(BAD())).wrap());
             });
         }
         None => {}
@@ -325,10 +326,10 @@ impl App {
                 let mut result = None;
                 let close = modal(ctx, "confirm", 440.0, |ui| {
                     heading(ui, title);
-                    ui.add(egui::Label::new(RichText::new(text.as_str()).color(TEXT)).wrap());
+                    ui.add(egui::Label::new(RichText::new(text.as_str()).color(TEXT())).wrap());
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("Yes").color(BAD).strong()).clicked() {
+                        if ui.button(RichText::new("Yes").color(BAD()).strong()).clicked() {
                             result = Some(true);
                         }
                         if ui.button("Cancel").clicked() {
@@ -350,7 +351,7 @@ impl App {
                 let close = modal(ctx, "delete-movies", 460.0, |ui| {
                     heading(ui, if ids.len() == 1 { "Delete movie" } else { "Delete movies" });
                     for n in &names {
-                        ui.label(RichText::new(n).color(TEXT).strong());
+                        ui.label(RichText::new(n).color(TEXT()).strong());
                     }
                     if ids.len() > names.len() {
                         ui.label(super::dim(&format!("…and {} more", ids.len() - names.len())));
@@ -358,12 +359,12 @@ impl App {
                     ui.add_space(6.0);
                     ui.checkbox(delete_files, "Delete the movie folders and files too");
                     if *delete_files {
-                        ui.label(RichText::new("Files go to the recycle bin if one is set, otherwise they're deleted for good.").color(WARN));
+                        ui.label(RichText::new("Files go to the recycle bin if one is set, otherwise they're deleted for good.").color(WARN()));
                     }
                     ui.checkbox(exclusion, "Add to the import list exclusions (so lists don't add it back)");
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("Delete").color(BAD).strong()).clicked() {
+                        if ui.button(RichText::new("Delete").color(BAD()).strong()).clicked() {
                             result = Some(true);
                         }
                         if ui.button("Cancel").clicked() {
@@ -397,14 +398,14 @@ impl App {
                     } else {
                         egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
                             for p in preview.iter() {
-                                ui.label(RichText::new(format!("− {}", p.existing)).color(BAD));
-                                ui.label(RichText::new(format!("+ {}", p.new)).color(GOOD));
+                                ui.label(RichText::new(format!("− {}", p.existing)).color(BAD()));
+                                ui.label(RichText::new(format!("+ {}", p.new)).color(GOOD()));
                                 ff::divider(ui);
                             }
                         });
                     }
                     ui.horizontal(|ui| {
-                        if !preview.is_empty() && ui.button(RichText::new("Rename").color(GOOD).strong()).clicked() {
+                        if !preview.is_empty() && ui.button(RichText::new("Rename").color(GOOD()).strong()).clicked() {
                             result = Some(true);
                         }
                         if ui.button("Close").clicked() {
@@ -422,7 +423,7 @@ impl App {
                 let mut result = None;
                 let close = modal(ctx, "remove-queue", 460.0, |ui| {
                     heading(ui, "Remove from queue");
-                    ui.add(egui::Label::new(RichText::new(title.as_str()).color(TEXT).strong()).wrap());
+                    ui.add(egui::Label::new(RichText::new(title.as_str()).color(TEXT()).strong()).wrap());
                     ui.add_space(6.0);
                     ui.checkbox(from_client, "Remove it from the download client (and delete its data)");
                     ui.checkbox(blocklist, "Add the release to the blocklist");
@@ -431,7 +432,7 @@ impl App {
                     }
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("Remove").color(BAD).strong()).clicked() {
+                        if ui.button(RichText::new("Remove").color(BAD()).strong()).clicked() {
                             result = Some(true);
                         }
                         if ui.button("Cancel").clicked() {
@@ -517,7 +518,7 @@ impl App {
             match fr.step {
                 0 => {
                     heading(ui, "Welcome to Turks");
-                    ui.add(egui::Label::new(RichText::new("Turks keeps your movie collection: it finds releases on your indexers, sends them to your download client, then renames and files them in your library.").color(TEXT)).wrap());
+                    ui.add(egui::Label::new(RichText::new("Turks keeps your movie collection: it finds releases on your indexers, sends them to your download client, then renames and files them in your library.").color(TEXT())).wrap());
                     ui.add_space(8.0);
                     w::section(ui, "1. TMDb API key");
                     ui.add(egui::Label::new(super::dim("Movie info and posters come from TMDb. A key is free: sign up at themoviedb.org, then Settings › API › Create. Either the API key or the read access token works.")).wrap());
@@ -543,7 +544,7 @@ impl App {
                     w::folder_field(ui, &mut fr.root, 340.0);
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.add_enabled(!fr.root.trim().is_empty(), egui::Button::new(RichText::new("Finish").color(GOOD).strong())).clicked() {
+                        if ui.add_enabled(!fr.root.trim().is_empty(), egui::Button::new(RichText::new("Finish").color(GOOD()).strong())).clicked() {
                             let path = fr.root.trim().to_string();
                             if !self.core.lib().root_folders.values().any(|r| r.path == path) {
                                 self.core.save(RootFolder { id: 0, path });
@@ -570,9 +571,9 @@ impl App {
 }
 
 pub fn quality_chip(ui: &mut Ui, qm: &QualityModel) {
-    ff::tag(ui, &crate::quality::full_name(qm), LABEL);
+    ff::tag(ui, &crate::quality::full_name(qm), LABEL());
 }
 
 pub fn dim_text(t: &str) -> RichText {
-    RichText::new(t).color(TEXT_DIM)
+    RichText::new(t).color(TEXT_DIM())
 }

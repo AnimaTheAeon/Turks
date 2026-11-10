@@ -25,7 +25,7 @@ impl App {
             (lib.active_downloads().count(), lib.blocklist.len())
         };
         ui.horizontal(|ui| {
-            ff::title(ui, "Activity", 26.0, TEXT);
+            ff::title(ui, "Activity", 26.0, TEXT());
             ui.add_space(10.0);
             for (i, l) in [format!("Queue {queue_n}"), "History".into(), format!("Blocklist {block_n}")].iter().enumerate() {
                 if w::pill(ui, l, self.activity.tab == i as u8).clicked() {
@@ -54,7 +54,7 @@ impl App {
                 s.client_items.iter().filter_map(|(id, (_, r))| r.as_ref().err().map(|e| format!("{}: {e}", lib.clients.get(id).map(|c| c.name.as_str()).unwrap_or("client")))).collect()
             };
             for e in errors {
-                ui.label(RichText::new(e).color(BAD).size(12.0));
+                ui.label(RichText::new(e).color(BAD()).size(12.0));
             }
         });
         let lib = self.core.lib().clone();
@@ -81,44 +81,44 @@ impl App {
                     ui.vertical(|ui| {
                         ui.set_width((ui.available_width() - 330.0).max(240.0));
                         let name = movie.map(|m| m.display()).unwrap_or_else(|| "(unknown movie)".into());
-                        if ff::title(ui, &name, 18.0, TEXT).interact(egui::Sense::click()).clicked() && movie.is_some() {
+                        if ff::title(ui, &name, 18.0, TEXT()).interact(egui::Sense::click()).clicked() && movie.is_some() {
                             open = Some(d.movie_id);
                         }
-                        ui.add(egui::Label::new(RichText::new(&d.title).color(TEXT_DIM).size(12.0)).truncate()).on_hover_text(&d.title);
+                        ui.add(egui::Label::new(RichText::new(&d.title).color(TEXT_DIM()).size(12.0)).truncate()).on_hover_text(&d.title);
                         ui.horizontal(|ui| {
                             common::quality_chip(ui, &d.quality);
-                            ui.label(RichText::new(format!("{} · {}", d.protocol.label(), d.indexer)).color(TEXT_DIM).size(12.0));
+                            ui.label(RichText::new(format!("{} · {}", d.protocol.label(), d.indexer)).color(TEXT_DIM()).size(12.0));
                             if let Some(c) = lib.clients.get(&d.client_id) {
-                                ui.label(RichText::new(format!("→ {}", c.name)).color(TEXT_DIM).size(12.0));
+                                ui.label(RichText::new(format!("→ {}", c.name)).color(TEXT_DIM()).size(12.0));
                             }
                         });
                         for m in &d.messages {
-                            ui.add(egui::Label::new(RichText::new(m).color(WARN).size(12.0)).wrap());
+                            ui.add(egui::Label::new(RichText::new(m).color(WARN()).size(12.0)).wrap());
                         }
                     });
                     ui.vertical(|ui| {
                         ui.set_width(300.0);
                         let frac = if d.size > 0 { 1.0 - d.remaining as f32 / d.size as f32 } else { 0.0 };
                         let color = match d.state {
-                            DownloadState::Failed => BAD,
-                            DownloadState::Warning => WARN,
-                            DownloadState::Imported => GOOD,
+                            DownloadState::Failed => BAD(),
+                            DownloadState::Warning => WARN(),
+                            DownloadState::Imported => GOOD(),
                             _ => Color32::WHITE,
                         };
                         ui.horizontal(|ui| {
                             ff::stat_label(ui, "MP");
-                            ui.label(RichText::new(format!("{:.0}%", frac * 100.0)).color(TEXT));
+                            ui.label(RichText::new(format!("{:.0}%", frac * 100.0)).color(TEXT()));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 ff::tag(ui, d.state.label(), color);
                             });
                         });
                         ff::stat_bar(ui, frac, 290.0, Color32::from_rgb(70, 130, 230), color);
-                        ui.label(RichText::new(format!("{} of {} · {}", crate::decision::human_size(d.size.saturating_sub(d.remaining)), crate::decision::human_size(d.size), crate::core::human_rate_eta(d.eta_secs))).color(TEXT_DIM).size(12.0));
+                        ui.label(RichText::new(format!("{} of {} · {}", crate::decision::human_size(d.size.saturating_sub(d.remaining)), crate::decision::human_size(d.size), crate::core::human_rate_eta(d.eta_secs))).color(TEXT_DIM()).size(12.0));
                         ui.horizontal(|ui| {
                             if matches!(d.state, DownloadState::Warning | DownloadState::ImportPending) && ui.small_button("Manual import").clicked() {
                                 import = Some((d.output_path.clone(), d.movie_id));
                             }
-                            if !d.state.finished() && ui.small_button(RichText::new("Remove").color(BAD)).clicked() {
+                            if !d.state.finished() && ui.small_button(RichText::new("Remove").color(BAD())).clicked() {
                                 remove = Some((d.id, d.title.clone()));
                             }
                         });
@@ -131,10 +131,10 @@ impl App {
                 for p in pending {
                     ui.horizontal(|ui| {
                         let name = lib.movies.get(&p.movie_id).map(|m| m.display()).unwrap_or_default();
-                        ui.label(RichText::new(name).color(TEXT).strong());
-                        ui.add(egui::Label::new(RichText::new(&p.release.title).color(TEXT_DIM).size(12.0)).truncate());
+                        ui.label(RichText::new(name).color(TEXT()).strong());
+                        ui.add(egui::Label::new(RichText::new(&p.release.title).color(TEXT_DIM()).size(12.0)).truncate());
                         if let Some(t) = p.release_at {
-                            ui.label(RichText::new(format!("until {}", common::when(Some(t), &self.cfg))).color(LABEL).size(12.0));
+                            ui.label(RichText::new(format!("until {}", common::when(Some(t), &self.cfg))).color(LABEL()).size(12.0));
                         }
                         if ui.small_button("Grab now").clicked() {
                             grab_pending = Some(p.clone());
@@ -190,7 +190,7 @@ impl App {
             if ui.button("Refresh").clicked() {
                 self.activity.history = None;
             }
-            if ui.button(RichText::new("Clear history").color(BAD)).clicked() {
+            if ui.button(RichText::new("Clear history").color(BAD())).clicked() {
                 self.dialog = Some(Dialog::Confirm { title: "Clear history".into(), text: "Delete every history entry? Downloads and files aren't touched.".into(), action: common::Confirm::ClearHistory });
             }
         });
@@ -210,7 +210,7 @@ impl App {
         let lib = self.core.lib().clone();
         ui.horizontal(|ui| {
             ui.add(egui::Label::new(common::dim_text("Releases here are never grabbed again for that movie.")).wrap());
-            if !lib.blocklist.is_empty() && ui.button(RichText::new("Clear blocklist").color(BAD)).clicked() {
+            if !lib.blocklist.is_empty() && ui.button(RichText::new("Clear blocklist").color(BAD())).clicked() {
                 self.dialog = Some(Dialog::Confirm { title: "Clear blocklist".into(), text: "Remove every release from the blocklist?".into(), action: common::Confirm::ClearBlocklist });
             }
         });
@@ -218,7 +218,7 @@ impl App {
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             egui::Grid::new("blocklist").striped(true).spacing([12.0, 6.0]).show(ui, |ui| {
                 for h in ["Movie", "Release", "Quality", "Indexer", "Reason", "Date", ""] {
-                    ff::title(ui, h, 13.0, LABEL);
+                    ff::title(ui, h, 13.0, LABEL());
                 }
                 ui.end_row();
                 let mut items: Vec<&Blocklist> = lib.blocklist.values().collect();
@@ -228,7 +228,7 @@ impl App {
                     sized_left(ui, 300.0, egui::Label::new(RichText::new(&b.source_title).size(12.0)).truncate());
                     ui.label(crate::quality::full_name(&b.quality));
                     ui.label(&b.indexer);
-                    ui.add(egui::Label::new(RichText::new(&b.message).color(TEXT_DIM).size(12.0)).truncate());
+                    ui.add(egui::Label::new(RichText::new(&b.message).color(TEXT_DIM()).size(12.0)).truncate());
                     ui.label(common::when(b.date, &self.cfg));
                     if ui.small_button("Remove").clicked() {
                         remove = Some(b.id);

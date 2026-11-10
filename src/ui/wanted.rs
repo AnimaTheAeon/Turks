@@ -31,7 +31,7 @@ impl App {
         };
         let cutoff = crate::library::cutoff_unmet(&self.core);
         ui.horizontal(|ui| {
-            ff::title(ui, "Wanted", 26.0, TEXT);
+            ff::title(ui, "Wanted", 26.0, TEXT());
             ui.add_space(10.0);
             if w::pill(ui, &format!("Missing {}", missing.len()), self.wanted.tab == 0).clicked() {
                 self.wanted.tab = 0;
@@ -61,18 +61,18 @@ impl App {
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             egui::Grid::new("wanted").striped(true).spacing([14.0, 6.0]).show(ui, |ui| {
                 for h in ["Movie", "Profile", "Released", "Current", "Last searched", ""] {
-                    ff::title(ui, h, 13.0, LABEL);
+                    ff::title(ui, h, 13.0, LABEL());
                 }
                 ui.end_row();
                 for m in &list {
-                    if ui.add(egui::Label::new(RichText::new(m.display()).color(TEXT).strong()).sense(egui::Sense::click())).clicked() {
+                    if ui.add(egui::Label::new(RichText::new(m.display()).color(TEXT()).strong()).sense(egui::Sense::click())).clicked() {
                         open = Some(m.id);
                     }
                     ui.label(lib.profile_for(m).map(|p| p.name.clone()).unwrap_or_default());
                     let rel = m.digital_release.or(m.physical_release).or(m.in_cinemas);
-                    ui.label(RichText::new(common::date_label(rel, &self.cfg)).color(if m.is_available(delay) { TEXT } else { WARN }));
+                    ui.label(RichText::new(common::date_label(rel, &self.cfg)).color(if m.is_available(delay) { TEXT() } else { WARN() }));
                     ui.label(lib.file_for(m).map(|f| crate::quality::full_name(&f.quality)).unwrap_or_else(|| "—".into()));
-                    ui.label(RichText::new(common::when(m.last_search, &self.cfg)).color(TEXT_DIM));
+                    ui.label(RichText::new(common::when(m.last_search, &self.cfg)).color(TEXT_DIM()));
                     if ui.small_button("Search").clicked() {
                         search = Some(m.id);
                     }

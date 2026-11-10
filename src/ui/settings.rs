@@ -68,9 +68,9 @@ fn card(ui: &mut Ui, title: &str, sub: &str, ok: Option<bool>) -> (egui::Respons
     let hovered = r.hovered();
     ui.painter().rect(
         rect,
-        egui::CornerRadius::same(5),
-        egui::Color32::from_rgba_premultiplied(8, 12, 52, 150),
-        egui::Stroke::new(1.0, if hovered { LABEL } else { ff::BORDER_MID }),
+        egui::CornerRadius::same(if ff::is_green() { 1 } else { 5 }),
+        if ff::is_green() { egui::Color32::from_rgba_premultiplied(2, 18, 2, 160) } else { egui::Color32::from_rgba_premultiplied(8, 12, 52, 150) },
+        egui::Stroke::new(1.0, if hovered { LABEL() } else { ff::BORDER_MID() }),
         egui::StrokeKind::Inside,
     );
     let mut delete = false;
@@ -79,14 +79,14 @@ fn card(ui: &mut Ui, title: &str, sub: &str, ok: Option<bool>) -> (egui::Respons
         if let Some(ok) = ok {
             ff::badge(ui, if ok { ff::Badge::Good } else { ff::Badge::Bad }, 14.0);
         }
-        ui.add(egui::Label::new(RichText::new(title).color(TEXT).strong().size(15.0)).truncate());
+        ui.add(egui::Label::new(RichText::new(title).color(TEXT()).strong().size(15.0)).truncate());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.small_button(RichText::new("×").color(BAD)).on_hover_text("Delete").clicked() {
+            if ui.small_button(RichText::new("×").color(BAD())).on_hover_text("Delete").clicked() {
                 delete = true;
             }
         });
     });
-    child.add(egui::Label::new(RichText::new(sub).color(TEXT_DIM).size(12.0)).truncate());
+    child.add(egui::Label::new(RichText::new(sub).color(TEXT_DIM()).size(12.0)).truncate());
     if hovered {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -94,16 +94,30 @@ fn card(ui: &mut Ui, title: &str, sub: &str, ok: Option<bool>) -> (egui::Respons
 }
 
 fn add_card(ui: &mut Ui, label: &str) -> bool {
-    ui.add_sized([250.0, 54.0], egui::Button::new(RichText::new(format!("+  {label}")).color(LABEL).strong())).clicked()
+    ui.add_sized([250.0, 54.0], egui::Button::new(RichText::new(format!("+  {label}")).color(LABEL()).strong())).clicked()
 }
 
 impl App {
     pub fn page_settings(&mut self, ui: &mut Ui) {
         let advanced = self.cfg.advanced_mode;
+        let mut flip = false;
         ui.horizontal(|ui| {
-            ff::title(ui, "Settings", 26.0, TEXT);
-            ui.label(common::dim_text(if advanced { "Advanced mode: showing everything" } else { "Simple mode: the settings most people need (switch with MODE in the side window)" }));
+            ff::title(ui, "Settings", 26.0, TEXT());
+            if ff::is_green() {
+                ui.label(common::dim_text(if advanced { "Advanced mode: showing everything" } else { "Simple mode: the settings most people need" }));
+                let label = if advanced { "MODE: ADVANCED" } else { "MODE: SIMPLE" };
+                flip = ui
+                    .button(RichText::new(label).color(LABEL()).strong())
+                    .on_hover_text("Simple shows the settings most people need. Advanced shows everything Radarr has.")
+                    .clicked();
+            } else {
+                ui.label(common::dim_text(if advanced { "Advanced mode: showing everything" } else { "Simple mode: the settings most people need (switch with MODE in the side window)" }));
+            }
         });
+        if flip {
+            self.cfg.advanced_mode = !advanced;
+            self.changed();
+        }
         ff::divider(ui);
         let avail = ui.available_rect_before_wrap();
         let nav_w = 196.0;
@@ -157,7 +171,7 @@ impl App {
             ui.horizontal(|ui| {
                 let ok = std::path::Path::new(&r.path).is_dir();
                 ff::badge(ui, if ok { ff::Badge::Good } else { ff::Badge::Bad }, 14.0);
-                ui.label(RichText::new(&r.path).color(TEXT).strong());
+                ui.label(RichText::new(&r.path).color(TEXT()).strong());
                 if let Some(f) = crate::import::free_space(std::path::Path::new(&r.path)) {
                     ui.label(common::dim_text(&format!("{} free", crate::decision::human_size(f))));
                 }
@@ -167,7 +181,7 @@ impl App {
                     self.add.tab = 1;
                     self.go(super::Page::Add);
                 }
-                if ui.small_button(RichText::new("Remove").color(BAD)).clicked() {
+                if ui.small_button(RichText::new("Remove").color(BAD())).clicked() {
                     remove = Some(r.id);
                 }
             });
@@ -201,11 +215,11 @@ impl App {
         ch |= w::row(ui, "Movie file format", "Tokens: {Movie Title} {Movie CleanTitle} {Release Year} {Quality Full} {Edition Tags} {MediaInfo VideoCodec} {MediaInfo AudioCodec} {MediaInfo VideoDynamicRangeType} {Release Group} {Custom Formats} {ImdbId} {TmdbId}. {Movie.Title} uses dots, {MOVIE TITLE} upper case.", |ui| {
             ui.add(egui::TextEdit::singleline(&mut c.standard_movie_format).desired_width(360.0)).changed()
         });
-        ui.label(RichText::new(format!("Example: {}", crate::naming::example(c, false))).color(GOOD).size(12.0));
+        ui.label(RichText::new(format!("Example: {}", crate::naming::example(c, false))).color(GOOD()).size(12.0));
         ch |= w::row(ui, "Movie folder format", "Folder for each movie. Add {imdb-{ImdbId}} or {tmdb-{TmdbId}} for Plex/Jellyfin id matching.", |ui| {
             ui.add(egui::TextEdit::singleline(&mut c.movie_folder_format).desired_width(360.0)).changed()
         });
-        ui.label(RichText::new(format!("Example: {}", crate::naming::example(c, true))).color(GOOD).size(12.0));
+        ui.label(RichText::new(format!("Example: {}", crate::naming::example(c, true))).color(GOOD()).size(12.0));
 
         w::section_help(ui, "Importing", "What happens when a download finishes.");
         ch |= toggle_row(ui, "Use hardlinks instead of copy", "For torrents on the same drive: the file appears in your library without using extra space, and keeps seeding. Falls back to copying across drives.", &mut c.use_hardlinks);
@@ -370,11 +384,11 @@ impl App {
         let mut save = Vec::new();
         egui::Grid::new("sizes").striped(true).spacing([14.0, 6.0]).show(ui, |ui| {
             for h in ["Quality", "Min", "Preferred", "Max", "2-hour movie"] {
-                ff::title(ui, h, 13.0, LABEL);
+                ff::title(ui, h, 13.0, LABEL());
             }
             ui.end_row();
             for mut s in sizes {
-                ui.label(RichText::new(crate::quality::name(s.quality)).color(TEXT));
+                ui.label(RichText::new(crate::quality::name(s.quality)).color(TEXT()));
                 let mut changed = ui.add(egui::DragValue::new(&mut s.min).range(0.0..=2000.0).speed(0.5)).changed();
                 let mut pref = s.preferred.unwrap_or(0.0);
                 if ui.add(egui::DragValue::new(&mut pref).range(0.0..=2000.0).speed(0.5).custom_formatter(|n, _| if n <= 0.0 { "Unlimited".into() } else { format!("{n:.1}") })).changed() {
@@ -569,11 +583,11 @@ impl App {
         let mut delete = None;
         for m in lib.remote_paths.values() {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{}  {}  →  {}", m.host, m.remote, m.local)).color(TEXT));
+                ui.label(RichText::new(format!("{}  {}  →  {}", m.host, m.remote, m.local)).color(TEXT()));
                 if ui.small_button("Edit").clicked() {
                     open = Some(m.clone());
                 }
-                if ui.small_button(RichText::new("Remove").color(BAD)).clicked() {
+                if ui.small_button(RichText::new("Remove").color(BAD())).clicked() {
                     delete = Some(m.id);
                 }
             });
@@ -650,7 +664,7 @@ impl App {
         let mut remove = None;
         for e in lib.exclusions.values() {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{} ({})", e.title, e.year)).color(TEXT));
+                ui.label(RichText::new(format!("{} ({})", e.title, e.year)).color(TEXT()));
                 if ui.small_button("Remove").clicked() {
                     remove = Some(e.id);
                 }
@@ -725,7 +739,7 @@ impl App {
         let mut delete = None;
         egui::Grid::new("tags").striped(true).spacing([16.0, 6.0]).show(ui, |ui| {
             for h in ["Tag", "Movies", "Indexers", "Clients", "Connections", "Lists", ""] {
-                ff::title(ui, h, 13.0, LABEL);
+                ff::title(ui, h, 13.0, LABEL());
             }
             ui.end_row();
             for t in lib.tags.values() {
@@ -734,7 +748,7 @@ impl App {
                 let c = lib.clients.values().filter(|x| x.tags.contains(&t.id)).count();
                 let n = lib.notifications.values().filter(|x| x.tags.contains(&t.id)).count();
                 let l = lib.lists.values().filter(|x| x.tags.contains(&t.id)).count();
-                ui.label(RichText::new(&t.label).color(TEXT).strong());
+                ui.label(RichText::new(&t.label).color(TEXT()).strong());
                 for v in [m, i, c, n, l] {
                     ui.label(v.to_string());
                 }
@@ -829,6 +843,20 @@ impl App {
     fn s_ui(&mut self, ui: &mut Ui) {
         let c = &mut self.cfg;
         let mut ch = false;
+        w::section_help(ui, "Look", "");
+        ch |= w::row(ui, "Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it.", |ui| {
+            let mut changed = false;
+            let cur = ff::Theme::from_key(&c.theme);
+            egui::ComboBox::from_id_salt("theme").selected_text(cur.label()).show_ui(ui, |ui| {
+                for t in [ff::Theme::FfMenu, ff::Theme::GreenDash] {
+                    if ui.selectable_label(cur == t, t.label()).clicked() && cur != t {
+                        c.theme = t.key().to_string();
+                        changed = true;
+                    }
+                }
+            });
+            changed
+        });
         w::section_help(ui, "Calendar and dates", "");
         ch |= w::row(ui, "First day of week", "", |ui| {
             let mut changed = false;
@@ -871,7 +899,7 @@ impl App {
         let footer = |ui: &mut Ui, save: &mut bool, cancel: &mut bool| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("Save").color(GOOD).strong()).clicked() {
+                if ui.button(RichText::new("Save").color(GOOD()).strong()).clicked() {
                     *save = true;
                 }
                 if ui.button("Cancel").clicked() {
@@ -1213,7 +1241,7 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.checkbox(&mut it.allowed, "");
                             let label = if it.name.is_empty() { crate::quality::name(it.id).to_string() } else { format!("{} ({})", it.name, it.qualities.iter().map(|q| crate::quality::name(*q)).collect::<Vec<_>>().join(", ")) };
-                            ui.label(RichText::new(label).color(if it.allowed { TEXT } else { TEXT_DIM }));
+                            ui.label(RichText::new(label).color(if it.allowed { TEXT() } else { TEXT_DIM() }));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if idx > 0 && ui.small_button("▼").clicked() {
                                     swap = Some((idx, idx - 1));
@@ -1237,7 +1265,7 @@ impl App {
                         let pos = item.format_items.iter().position(|x| x.format_id == f.id);
                         let mut score = pos.map(|p| item.format_items[p].score).unwrap_or(0);
                         ui.horizontal(|ui| {
-                            ui.add_sized([260.0, 18.0], egui::Label::new(RichText::new(&f.name).color(TEXT)));
+                            ui.add_sized([260.0, 18.0], egui::Label::new(RichText::new(&f.name).color(TEXT())));
                             if ui.add(egui::DragValue::new(&mut score).range(-100000..=100000)).changed() {
                                 match pos {
                                     Some(p) => item.format_items[p].score = score,
@@ -1262,11 +1290,11 @@ impl App {
                     for (i, s) in item.specs.iter_mut().enumerate() {
                         ui.group(|ui| {
                             ui.horizontal(|ui| {
-                                ff::tag(ui, s.kind.label(), LABEL);
+                                ff::tag(ui, s.kind.label(), LABEL());
                                 ui.add(egui::TextEdit::singleline(&mut s.name).hint_text("name").desired_width(140.0));
                                 ui.checkbox(&mut s.negate, "Negate");
                                 ui.checkbox(&mut s.required, "Required");
-                                if ui.small_button(RichText::new("×").color(BAD)).clicked() {
+                                if ui.small_button(RichText::new("×").color(BAD())).clicked() {
                                     remove = Some(i);
                                 }
                             });
@@ -1274,7 +1302,7 @@ impl App {
                                 CfKind::ReleaseTitle { pattern } | CfKind::ReleaseGroup { pattern } | CfKind::Edition { pattern } => {
                                     ui.add(egui::TextEdit::singleline(pattern).hint_text("regular expression").desired_width(480.0).font(egui::TextStyle::Monospace));
                                     if !pattern.is_empty() && fancy_regex::Regex::new(pattern).is_err() {
-                                        ui.label(RichText::new("That regex doesn't compile.").color(BAD).size(12.0));
+                                        ui.label(RichText::new("That regex doesn't compile.").color(BAD()).size(12.0));
                                     }
                                 }
                                 CfKind::Source { source } => {
@@ -1357,10 +1385,10 @@ impl App {
                     ui.add(egui::TextEdit::multiline(text).desired_width(600.0).desired_rows(14).font(egui::TextStyle::Monospace));
                 });
                 if let Some(e) = error {
-                    ui.label(RichText::new(e.as_str()).color(BAD));
+                    ui.label(RichText::new(e.as_str()).color(BAD()));
                 }
                 ui.horizontal(|ui| {
-                    if ui.button(RichText::new("Import").color(GOOD).strong()).clicked() {
+                    if ui.button(RichText::new("Import").color(GOOD()).strong()).clicked() {
                         save = true;
                     }
                     if ui.button("Cancel").clicked() {
@@ -1435,13 +1463,13 @@ impl App {
                         *task = Some(common::spawn(ctx, move || crate::indexers::from_prowlarr(&u, &k)));
                     }
                     if let Some(e) = error {
-                        ui.label(RichText::new(e.as_str()).color(BAD));
+                        ui.label(RichText::new(e.as_str()).color(BAD()));
                     }
                     for (on, ix) in found.iter_mut() {
                         ui.checkbox(on, format!("{} ({})", ix.name, ix.kind.protocol().label()));
                     }
                     ui.horizontal(|ui| {
-                        if !found.is_empty() && ui.button(RichText::new("Add selected").color(GOOD).strong()).clicked() {
+                        if !found.is_empty() && ui.button(RichText::new("Add selected").color(GOOD()).strong()).clicked() {
                             save = true;
                         }
                         if ui.button("Cancel").clicked() {
@@ -1531,7 +1559,7 @@ impl App {
             }
             return false;
         }
-        let _ = WARN;
+        let _ = WARN();
         !(cancel || close)
     }
 }

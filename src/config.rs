@@ -98,6 +98,8 @@ pub struct Config {
     pub start_with_windows: bool,
     pub close_to_tray: bool,
     pub advanced_mode: bool,
+    /// Look of the window: "ff" (FFVII menu) or "green" (Box of X).
+    pub theme: String,
     pub log_debug: bool,
     pub proxy_url: String,
     pub ffprobe_path: String,
@@ -192,6 +194,7 @@ impl Default for Config {
             start_with_windows: false,
             close_to_tray: true,
             advanced_mode: false,
+            theme: "ff".into(),
             log_debug: false,
             proxy_url: String::new(),
             ffprobe_path: String::new(),
