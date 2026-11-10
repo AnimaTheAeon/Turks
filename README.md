@@ -40,7 +40,7 @@ lives in `%APPDATA%\Turks`.
 **Indexers**: Torznab and Newznab, one-click **import from Prowlarr**, or let Prowlarr push them
 (Turks speaks Radarr's API).
 
-**Download clients**: Transmission (and Lifestream once it has its RPC endpoint), qBittorrent,
+**Download clients**: Lifestream and Transmission, qBittorrent,
 Deluge, **Synology Download Station**, SABnzbd, NZBGet, torrent and usenet blackhole folders.
 Remote path mappings for clients on another machine.
 
@@ -75,7 +75,7 @@ from GitHub Releases.
    window asks for it.
 2. **Root folder**: the folder that holds your movie folders (e.g. `D:\Media\Movies`).
 3. **Indexers**: Settings › Indexers › *Import from Prowlarr*, or add Torznab/Newznab by hand.
-4. **Download client**: Settings › Download Clients.
+4. **Download client**: Settings › Download Clients. For Lifestream, pick "Transmission / Lifestream" (localhost, port 9091, category `turks`) and turn on Config › Remote control in Lifestream 0.1.6+.
 5. Add movies (or *Import existing library*).
 
 With Jenova: point Jenova's watch folder at your movie root folder and subtitles appear after each import.
