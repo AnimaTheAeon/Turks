@@ -134,7 +134,7 @@ pub struct Inner {
     pub cfg: RwLock<Config>,
     pub status: Mutex<Status>,
     pub caps: Mutex<HashMap<Id, (Caps, Instant)>>,
-    pub repaint: Mutex<Option<eframe::egui::Context>>,
+    pub repaint: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
     pub shutting_down: std::sync::atomic::AtomicBool,
 }
 
@@ -216,13 +216,14 @@ impl Core {
         crate::tmdb::Tmdb::new(&c.tmdb_api_key, &c.metadata_language, &c.certification_country)
     }
 
-    pub fn set_repaint(&self, ctx: eframe::egui::Context) {
-        *self.repaint.lock().unwrap() = Some(ctx);
+    /// The window asks to be redrawn when something changes.
+    pub fn set_repaint(&self, f: impl Fn() + Send + Sync + 'static) {
+        *self.repaint.lock().unwrap() = Some(Box::new(f));
     }
 
     pub fn repaint(&self) {
-        if let Some(c) = self.repaint.lock().unwrap().as_ref() {
-            c.request_repaint();
+        if let Some(f) = self.repaint.lock().unwrap().as_ref() {
+            f();
         }
     }
 

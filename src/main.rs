@@ -1,5 +1,15 @@
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(all(windows, not(debug_assertions), feature = "gui"), windows_subsystem = "windows")]
 #![recursion_limit = "512"]
+#![cfg_attr(feature = "nas", allow(dead_code))]
+
+//! Turks: a movie collection manager. Two builds share this engine:
+//! `gui` (default) is the Windows desktop app; `nas` is the Synology DSM
+//! service with its web interface (see nas/).
+
+#[cfg(all(feature = "gui", feature = "nas"))]
+compile_error!("Build either the Windows app (default) or the Synology service (--no-default-features --features nas), not both.");
+
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 mod api;
 mod applog;
@@ -13,6 +23,7 @@ mod formats;
 mod health;
 mod import;
 mod indexers;
+#[cfg(feature = "gui")]
 mod instance;
 mod library;
 mod lists;
@@ -27,15 +38,33 @@ mod release;
 mod search;
 mod tmdb;
 mod tracked;
-#[cfg(windows)]
+#[cfg(all(windows, feature = "gui"))]
 mod tray;
+#[cfg(feature = "gui")]
 mod ui;
+#[cfg(feature = "gui")]
 mod updater;
-#[cfg(windows)]
+#[cfg(all(windows, feature = "gui"))]
 mod winint;
+#[cfg(feature = "nas")]
+mod nas;
+#[cfg(feature = "nas")]
+mod webapi;
 
+#[cfg(feature = "gui")]
 use eframe::egui;
 
+#[cfg(feature = "nas")]
+fn main() {
+    nas::main();
+}
+
+#[cfg(not(any(feature = "gui", feature = "nas")))]
+fn main() {
+    eprintln!("Build with the gui or nas feature.");
+}
+
+#[cfg(feature = "gui")]
 fn main() -> eframe::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let start_hidden = args.iter().any(|a| a == "--tray");
@@ -71,13 +100,13 @@ fn main() -> eframe::Result<()> {
     }
     #[cfg(windows)]
     winint::set_autostart(cfg.start_with_windows);
-    applog::info(format!("Turks {} starting", updater::APP_VERSION));
+    applog::info(format!("Turks {} starting", APP_VERSION));
     // Tell connections when Turks was updated.
     let last = core.db.meta("last_version").unwrap_or_default();
-    if !last.is_empty() && last != updater::APP_VERSION {
-        notify::dispatch(&core, notify::Event::AppUpdate { previous: last, new: updater::APP_VERSION.to_string() });
+    if !last.is_empty() && last != APP_VERSION {
+        notify::dispatch(&core, notify::Event::AppUpdate { previous: last, new: APP_VERSION.to_string() });
     }
-    core.db.set_meta("last_version", updater::APP_VERSION);
+    core.db.set_meta("last_version", APP_VERSION);
     core.start();
 
     // Run without a window (used by tests and for running as a service).
@@ -95,7 +124,7 @@ fn main() -> eframe::Result<()> {
         egui::IconData { rgba: i.into_raw(), width: w, height: h }
     });
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title(format!("Turks {}", updater::APP_VERSION))
+        .with_title(format!("Turks {}", APP_VERSION))
         .with_inner_size([1320.0, 860.0])
         .with_min_inner_size([1000.0, 660.0]);
     if let Some(icon) = icon {

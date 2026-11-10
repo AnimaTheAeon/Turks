@@ -21,7 +21,7 @@ pub enum Transfer {
     InPlace,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct ImportDecision {
     pub path: PathBuf,
     pub size: u64,
@@ -478,7 +478,7 @@ pub fn manual_candidates(core: &Core, folder: &Path, movie_hint: Option<Id>) -> 
 }
 
 /// A folder in a root folder that isn't a movie yet (Library Import).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct Unmapped {
     pub path: PathBuf,
     pub name: String,

@@ -101,7 +101,7 @@ fn handle(core: Core, mut req: Request) {
     if path.is_empty() || path == "/" {
         let html = format!(
             "<html><body style='background:#06083a;color:#f4f4f8;font-family:sans-serif;padding:40px'><h1>Turks {}</h1><p>The API is running. Use it with the API key from Settings › General.</p></body></html>",
-            crate::updater::APP_VERSION
+            crate::APP_VERSION
         );
         let _ = req.respond(Response::from_string(html).with_header(header("Content-Type", "text/html")));
         return;
@@ -144,7 +144,7 @@ fn handle(core: Core, mut req: Request) {
             (Method::Get, "system", Some("status")) => (
                 200,
                 json!({
-                    "appName": "Turks", "instanceName": "Turks", "version": format!("5.{}", crate::updater::APP_VERSION),
+                    "appName": "Turks", "instanceName": "Turks", "version": format!("5.{}", crate::APP_VERSION),
                     "isWindows": cfg!(windows), "isProduction": true, "authentication": "external", "urlBase": cfg.url_base,
                     "startTime": chrono::Utc::now().to_rfc3339(), "branch": "main", "runtimeName": "turks"
                 }),

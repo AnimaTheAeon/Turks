@@ -282,7 +282,7 @@ pub fn move_movie(core: &Core, id: Id, new_path: &str, move_files: bool) -> Resu
 
 // ---------------------------------------------------------------- renaming
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct RenamePreview {
     pub movie_id: Id,
     pub file_id: Id,

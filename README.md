@@ -1,6 +1,6 @@
 # Turks
 
-A movie collection manager for Windows with a classic JRPG party-menu look,
+A movie collection manager for Windows and Synology NAS with a classic JRPG party-menu look,
 built from [Radarr](https://github.com/Radarr/Radarr)'s source. Sibling app to
 [Jenova](https://github.com/AnimaTheAeon/Jenova) (subtitles) and
 [Lifestream](https://github.com/AnimaTheAeon/Lifestream) (torrents).
@@ -9,8 +9,14 @@ Turks watches for the movies you want, finds releases on your indexers, sends
 the best one to your download client, then renames and files it in your
 library and upgrades it later if something better shows up.
 
-Rust + egui desktop app. No web browser or .NET runtime needed. Your library
-lives in `%APPDATA%\Turks`.
+Two builds from one Rust engine:
+
+- **Windows**: an egui desktop app with a tray icon and an installer. No web browser or .NET
+  runtime needed. Your library lives in `%APPDATA%\Turks`.
+- **Synology DSM 7** (x86-64 models such as the DS923+): a background service plus a Turks window
+  in the DSM main menu, in the same menu style. Only DSM administrators can open it.
+
+Both update themselves from GitHub Releases.
 
 ## Features
 
@@ -78,16 +84,44 @@ from GitHub Releases.
 4. **Download client**: Settings › Download Clients. For Lifestream, pick "Transmission / Lifestream" (localhost, port 9091, category `turks`) and turn on Config › Remote control in Lifestream 0.1.6+.
 5. Add movies (or *Import existing library*).
 
+### On a Synology
+
+1. Download `Turks-<version>-x86_64.spk` from [Releases](https://github.com/AnimaTheAeon/Turks/releases),
+   then Package Center › Manual Install.
+2. Give the `Turks` system user Read/Write on your movie and download shares: Control Panel › Shared
+   Folder › Edit › Permissions › *System internal user* › Turks.
+3. Open Turks from the main menu and follow the steps above. Folder pickers show your shared folders.
+4. Download Station works as a download client, as does Lifestream on a PC or Transmission/qBittorrent
+   in Docker (add a remote path mapping if the paths differ).
+5. **Updates**: Turks checks GitHub twice a day. DSM only lets packages install updates as root, so
+   create one Task Scheduler task (User: root, daily) that runs
+   `/var/packages/Turks/target/bin/turks update`. Settings › General › Updates shows the exact steps.
+
+The Radarr-compatible API listens on port 7878 on the network by default on a NAS, so Overseerr,
+Jellyseerr and Prowlarr can connect with the API key from Settings › General.
+
 With Jenova: point Jenova's watch folder at your movie root folder and subtitles appear after each import.
 
 ## Building
 
 ```
-cargo build --release
+cargo build --release                                     # Windows app
+cargo build --release --no-default-features --features nas \
+    --target x86_64-unknown-linux-musl                    # Synology service
+nas/build-spk.sh target/x86_64-unknown-linux-musl/release/turks dist
 ```
 
-GitHub Actions builds `turks.exe` and the installer on every push; bumping the version in
-`Cargo.toml` and pushing to `main` publishes a release (which the in-app updater picks up).
+GitHub Actions builds `turks.exe`, the installer and the `.spk` on every push; bumping the version in
+`Cargo.toml` and pushing to `main` publishes one release with all three, which both updaters pick up.
+
+The Synology window is plain HTML/JS in `nas/ui`. To work on it without a NAS, run the service with
+sign-in checks off and serve the window with the dev server, which runs the real CGI bridge:
+
+```
+cargo build --no-default-features --features nas
+TURKS_NO_AUTH=1 TURKS_DATA_DIR=/tmp/turks-dev target/debug/turks daemon &
+python3 nas/dev/serve.py target/debug/turks   # then open http://127.0.0.1:5080/
+```
 
 Developer extras: `turks --headless` runs the engine and API without a window. `TURKS_DATA_DIR`
 changes where data is kept.

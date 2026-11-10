@@ -1,0 +1,122 @@
+name: Build
+
+# Builds the Windows app (exe + installer) and the Synology package (.spk)
+# from the same source. A push to main with a new version number publishes
+# one release with all three files; both auto-updaters read that release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco upgrade innosetup -y --no-progress | Out-Null
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" installer\turks.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: turks-windows-x64
+          path: |
+            target/release/turks.exe
+            target/installer/*.exe
+
+  synology:
+    runs-on: ubuntu-latest
+    env:
+      CC_x86_64_unknown_linux_musl: musl-gcc
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: synology
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Test
+        run: cargo test --no-default-features --features nas
+      - name: Check the web UI scripts
+        run: for f in nas/ui/*.js; do node --check "$f"; done
+      - name: Build static binary
+        run: cargo build --release --no-default-features --features nas --target x86_64-unknown-linux-musl
+      - name: Check it's static
+        run: file target/x86_64-unknown-linux-musl/release/turks | tee /dev/stderr | grep -qE "static(-pie)? linked"
+      - name: Build .spk
+        run: BUILD_NUMBER=$(printf '%04d' ${{ github.run_number }}) nas/build-spk.sh target/x86_64-unknown-linux-musl/release/turks dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: turks-synology-x86_64
+          path: dist/*.spk
+
+  release:
+    needs: [windows, synology]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for an existing release
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ needs.windows.outputs.version }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.rel.outputs.exists == 'false'
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish release
+        if: steps.rel.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.windows.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Turks v${{ needs.windows.outputs.version }}
+          files: |
+            out/**/turks.exe
+            out/**/Turks-Setup-*.exe
+            out/**/*.spk
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            **Windows:** run `Turks-Setup-${{ needs.windows.outputs.version }}.exe` (or use the portable `turks.exe`). Installed copies update themselves from here.
+
+            **Synology (DSM 7, x86-64 models such as the DS923+):** Package Center → Manual Install → choose `Turks-${{ needs.windows.outputs.version }}-x86_64.spk`. Then give the `Turks` system user Read/Write on your movie and download shares (Control Panel → Shared Folder → Edit → Permissions → System internal user) and open Turks from the main menu. For automatic updates, follow Settings › General › Updates once.

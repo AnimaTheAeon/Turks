@@ -1,0 +1,16 @@
+#!/bin/sh
+mkdir -p "$SYNOPKG_PKGVAR"
+{
+cat << 'NOTE'
+<p style="font-weight:bold;">One more step: let Turks into your folders</p>
+<p>Turks runs as its own system user, so it can only see shared folders you allow. For your movie library and your downloads folder (for example <b>video</b> and <b>downloads</b>):</p>
+<ol style="list-style-type:decimal;list-style-position:inside;">
+<li>Open <b>Control Panel</b> &rarr; <b>Shared Folder</b></li>
+<li>Select the folder and click <b>Edit</b> &rarr; <b>Permissions</b></li>
+<li>Switch the list from <b>Local users</b> to <b>System internal user</b></li>
+<li>Tick <b>Read/Write</b> for <b>Turks</b> and click <b>Save</b></li>
+</ol>
+<p>Then open <b>Turks</b> from the main menu, add your TMDb API key in <b>Settings &rsaquo; General</b> and a root folder in <b>Settings &rsaquo; Media Management</b>.</p>
+NOTE
+} >> "$SYNOPKG_TEMP_LOGFILE"
+exit 0

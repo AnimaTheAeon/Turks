@@ -1,0 +1,21 @@
+{
+	"Turks.js": {
+		"Turks.AppInstance": {
+			"type": "app",
+			"title": "app:name",
+			"desc": "app:description",
+			"icon": "images/turks_{0}.png",
+			"texts": "texts",
+			"allowMultiInstance": false,
+			"allUsers": false,
+			"appWindow": "Turks.AppWindow",
+			"depend": ["Turks.AppWindow"]
+		},
+		"Turks.AppWindow": {
+			"type": "lib",
+			"title": "app:name",
+			"icon": "images/turks_{0}.png",
+			"texts": "texts"
+		}
+	}
+}

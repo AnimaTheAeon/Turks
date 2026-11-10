@@ -86,7 +86,8 @@ impl App {
         configure_fonts(&cc.egui_ctx);
         widgets::init_icons(&cc.egui_ctx);
         ff::apply_style(&cc.egui_ctx);
-        core.set_repaint(cc.egui_ctx.clone());
+        let repaint_ctx = cc.egui_ctx.clone();
+        core.set_repaint(move || repaint_ctx.request_repaint());
         #[cfg(windows)]
         let tray = crate::tray::Tray::new(core.clone(), cc.egui_ctx.clone());
         let updater = Arc::new(crate::updater::Updater::default());
