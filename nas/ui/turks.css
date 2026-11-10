@@ -485,3 +485,6 @@ body.green.ghome-on .ghome { display: block; }
 .gmenu-item.lit .gtab::before { background: linear-gradient(#e2ff6a, #8cc81c); }
 .ghome .gstatus { position: absolute; left: 22px; bottom: 22px; width: min(600px, 46vw); }
 .ghome .ghint { position: absolute; bottom: 26px; }
+
+/* Box of X: the lime glow the orb zoom flares into (see openFromHome / zoomHome). */
+#gzoom { position: fixed; inset: 0; background: #aaec3c; opacity: 0; pointer-events: none; z-index: 9999; }

@@ -462,7 +462,67 @@ function stepBack() {
   if (modalStack.length) return modalStack[modalStack.length - 1].close();
   if (Turks.home) return;
   if (Turks.page === "movies" && Turks.arg) return go("movies");
-  goHome();
+  zoomHome();
+}
+
+// Opening a page from home zooms into the orb until it fills the window and
+// flares lime, then the page fades in out of the glow. BACK plays it reversed.
+const ZOOM_MS = 500, REVEAL_MS = 350;
+const EASE_IN = "cubic-bezier(.32,0,.67,0)", EASE_OUT = "cubic-bezier(.33,1,.68,1)";
+let zooming = false;
+const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function glowLayer() {
+  let g = $("#gzoom");
+  if (!g) { g = el("div#gzoom"); document.body.append(g); }
+  return g;
+}
+
+/** How much the orb must grow to cover the window from its center. */
+function orbCoverScale(orb) {
+  const b = orb.getBoundingClientRect();
+  const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+  const reach = Math.max(...[[0, 0], [innerWidth, 0], [0, innerHeight], [innerWidth, innerHeight]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
+  return (reach * 1.15) / (b.width / 2 || 1);
+}
+
+const orbFrames = (from, to) => [{ transform: `translate(-50%, -50%) scale(${from})` }, { transform: `translate(-50%, -50%) scale(${to})` }];
+
+function openFromHome(key) {
+  const orb = $("#bigorb");
+  if (zooming) return;
+  if (!isGreen() || !Turks.home || !orb || calm()) return go(key);
+  zooming = true;
+  const g = glowLayer(), s = orbCoverScale(orb);
+  orb.style.zIndex = 40;
+  orb.animate(orbFrames(1, s), { duration: ZOOM_MS, easing: EASE_IN, fill: "forwards" });
+  g.animate([{ opacity: 0 }, { opacity: 0, offset: 0.55 }, { opacity: 1 }], { duration: ZOOM_MS, easing: "ease-in", fill: "forwards" }).finished.then(() => {
+    orb.getAnimations().forEach((a) => a.cancel());
+    orb.style.zIndex = "";
+    go(key);
+    g.getAnimations().forEach((a) => a.cancel());
+    g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: REVEAL_MS, easing: "ease-out", fill: "forwards" }).finished.then(() => { zooming = false; });
+  });
+}
+
+function zoomHome() {
+  if (zooming) return;
+  if (calm()) return goHome();
+  zooming = true;
+  const g = glowLayer();
+  g.getAnimations().forEach((a) => a.cancel());
+  g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: REVEAL_MS, easing: "ease-in", fill: "forwards" }).finished.then(() => {
+    goHome();
+    const orb = $("#bigorb");
+    const s = orbCoverScale(orb);
+    orb.style.zIndex = 40;
+    orb.animate(orbFrames(s, 1), { duration: ZOOM_MS, easing: EASE_OUT });
+    g.getAnimations().forEach((a) => a.cancel());
+    g.animate([{ opacity: 1 }, { opacity: 0, offset: 0.45 }, { opacity: 0 }], { duration: ZOOM_MS, easing: "ease-out", fill: "forwards" }).finished.then(() => {
+      orb.style.zIndex = "";
+      zooming = false;
+    });
+  });
 }
 
 function greenKey(e) {
@@ -472,7 +532,7 @@ function greenKey(e) {
     const n = MENU.length;
     if (e.key === "ArrowDown") Turks.cursor = (Turks.cursor + 1) % n;
     else if (e.key === "ArrowUp") Turks.cursor = (Turks.cursor + n - 1) % n;
-    else if (e.key === "Enter") return go(MENU[Turks.cursor][0]);
+    else if (e.key === "Enter") return openFromHome(MENU[Turks.cursor][0]);
     else return;
     e.preventDefault();
     markCursor();
@@ -528,7 +588,7 @@ function renderHome() {
     const item = el("div.gmenu-item", {
       style: { left: ox + dx - nodeR + "px", top: oy + dy - rowH * 0.38 + "px", height: rowH * 0.76 + "px" },
       onmousemove: () => { if (Turks.cursor !== i) { Turks.cursor = i; markCursor(); } },
-      onclick: () => go(key),
+      onclick: () => openFromHome(key),
     },
       el("span.node", { style: { width: 2 * nodeR + "px", height: 2 * nodeR + "px" } }),
       el("span.wire"),
@@ -579,7 +639,7 @@ Turks.start = async function () {
   startPolling();
   setInterval(() => { if (Turks.state) { Turks.state.uptime_secs++; $("#i-time").textContent = clock(Turks.state.uptime_secs); } }, 1000);
   $("#gback").onclick = () => stepBack();
-  $("#genter").onclick = () => go(MENU[Turks.cursor][0]);
+  $("#genter").onclick = () => openFromHome(MENU[Turks.cursor][0]);
   $("#gmode").onclick = async () => { await saveConfig({ advanced_mode: !Turks.cfg.advanced_mode }); renderInfo(); };
   $("#gstatus").onclick = () => go("system");
   $("#ghome-status").onclick = () => go("system");
