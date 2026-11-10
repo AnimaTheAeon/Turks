@@ -6,7 +6,7 @@
 use std::f32::consts::TAU;
 
 use eframe::egui::{
-    self, epaint::CubicBezierShape, pos2, Color32, Key, LayerId, Pos2, Rect, Sense, Shape, Stroke,
+    self, epaint::QuadraticBezierShape, pos2, Color32, Key, LayerId, Pos2, Rect, Sense, Shape, Stroke,
     Vec2,
 };
 
@@ -75,29 +75,26 @@ fn paint_big_orb(painter: &egui::Painter, c: Pos2, r: f32, t: f32) {
         painter.add(Shape::ellipse_filled(center, Vec2::new(sx * r, sy * r), rgba(140, 240, 60, 45)));
         painter.add(Shape::ellipse_stroke(center, Vec2::new(sx * r, sy * r), Stroke::new(1.5, rgba(200, 255, 120, 70))));
     }
-    // Emblem: a lens with an eye, drawn in pale light.
-    let s = r * 0.42;
-    let ink = Stroke::new((r * 0.035).max(2.0), rgba(255, 255, 230, 215));
-    let top = c + Vec2::new(0.0, -s);
-    let bottom = c + Vec2::new(0.0, s);
+    // Emblem: a Turk's sunglasses, in pale light.
+    let s = r * 0.46;
+    let p = |x: f32, y: f32| c + Vec2::new(x * s, y * s);
+    let pale = rgba(255, 255, 230, 225);
+    let lens = [(-1.05, -0.30), (-0.14, -0.30), (-0.22, 0.16), (-0.42, 0.30), (-0.86, 0.30), (-1.0, 0.12)];
     for side in [-1.0, 1.0] {
-        painter.add(CubicBezierShape::from_points_stroke(
-            [top, c + Vec2::new(side * s * 0.95, -s * 0.45), c + Vec2::new(side * s * 0.95, s * 0.45), bottom],
-            false,
-            Color32::TRANSPARENT,
-            ink,
-        ));
+        let pts: Vec<Pos2> = lens.iter().map(|&(x, y)| p(x * side, y)).collect();
+        painter.add(Shape::convex_polygon(pts, rgba(255, 255, 230, 200), Stroke::new((r * 0.02).max(1.2), pale)));
+        // A glint across each lens.
+        let (gx0, gx1) = if side < 0.0 { (-0.78, -0.56) } else { (0.42, 0.58) };
+        painter.line_segment([p(gx0, -0.16), p(gx1, 0.10)], Stroke::new((r * 0.03).max(1.5), rgba(70, 140, 25, 140)));
     }
-    let thin = Stroke::new((r * 0.022).max(1.5), rgba(255, 255, 230, 150));
-    for side in [-1.0, 1.0] {
-        painter.add(CubicBezierShape::from_points_stroke(
-            [c + Vec2::new(-s * 1.15, 0.0), c + Vec2::new(-s * 0.3, side * s * 0.32), c + Vec2::new(s * 0.3, side * s * 0.32), c + Vec2::new(s * 1.15, 0.0)],
-            false,
-            Color32::TRANSPARENT,
-            thin,
-        ));
-    }
-    painter.circle_filled(c, s * 0.2, rgba(255, 255, 230, 220));
+    // Brow bar and bridge.
+    painter.line_segment([p(-1.16, -0.33), p(1.16, -0.33)], Stroke::new((r * 0.04).max(2.0), pale));
+    painter.add(QuadraticBezierShape::from_points_stroke(
+        [p(-0.14, -0.22), p(0.0, -0.06), p(0.14, -0.22)],
+        false,
+        Color32::TRANSPARENT,
+        Stroke::new((r * 0.03).max(1.5), pale),
+    ));
 }
 
 /// Ring node beside each tab.

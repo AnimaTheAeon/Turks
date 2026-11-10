@@ -500,15 +500,22 @@ function renderHome() {
   const ox = W * 0.3, oy = H / 2 - 24;
   const orb = $("#bigorb");
   orb.style.cssText = `left:${ox}px;top:${oy}px;width:${2 * r}px;height:${2 * r}px;--r:${r}px`;
-  const s = r * 0.42;
   orb.innerHTML = `<div class="shell"></div><div class="spin"></div><div class="jelly"></div><div class="core"></div>
     <div class="lobe" style="left:${50 - 21 - 25}%;top:${50 + 12 - 15}%;width:42%;height:30%"></div>
     <div class="lobe" style="left:${50 + 27 - 16}%;top:${50 - 5 - 22}%;width:32%;height:45%;animation-duration:9s"></div>
     <div class="lobe" style="left:${50 + 5 - 25}%;top:${50 + 31 - 11}%;width:50%;height:22%;animation-duration:11s"></div>
     <svg viewBox="${-r} ${-r} ${2 * r} ${2 * r}" fill="none" stroke-linecap="round">
-      <path d="M0 ${-s} C ${-s * 0.95} ${-s * 0.45}, ${-s * 0.95} ${s * 0.45}, 0 ${s} C ${s * 0.95} ${s * 0.45}, ${s * 0.95} ${-s * 0.45}, 0 ${-s}" stroke="rgba(255,255,230,.85)" stroke-width="${Math.max(2, r * 0.035)}"/>
-      <path d="M${-s * 1.15} 0 C ${-s * 0.3} ${-s * 0.32}, ${s * 0.3} ${-s * 0.32}, ${s * 1.15} 0 C ${s * 0.3} ${s * 0.32}, ${-s * 0.3} ${s * 0.32}, ${-s * 1.15} 0" stroke="rgba(255,255,230,.6)" stroke-width="${Math.max(1.5, r * 0.022)}"/>
-      <circle r="${s * 0.2}" fill="rgba(255,255,230,.88)" stroke="none"/>
+      ${(() => {
+        // A Turk's sunglasses.
+        const S = r * 0.46, f = (x, y) => `${(x * S).toFixed(1)},${(y * S).toFixed(1)}`;
+        const lens = [[-1.05, -0.3], [-0.14, -0.3], [-0.22, 0.16], [-0.42, 0.3], [-0.86, 0.3], [-1.0, 0.12]];
+        const sw = Math.max(1.2, r * 0.02), pale = "rgba(255,255,230,.9)";
+        const one = (k) => `<polygon points="${lens.map(([x, y]) => f(x * k, y)).join(" ")}" fill="rgba(255,255,230,.8)" stroke="${pale}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+        const glint = (x0, x1) => `<line x1="${x0 * S}" y1="${-0.16 * S}" x2="${x1 * S}" y2="${0.1 * S}" stroke="rgba(70,140,25,.55)" stroke-width="${Math.max(1.5, r * 0.03)}"/>`;
+        return one(-1) + one(1) + glint(-0.78, -0.56) + glint(0.42, 0.58)
+          + `<line x1="${-1.16 * S}" y1="${-0.33 * S}" x2="${1.16 * S}" y2="${-0.33 * S}" stroke="${pale}" stroke-width="${Math.max(2, r * 0.04)}"/>`
+          + `<path d="M${f(-0.14, -0.22)} Q 0,${(-0.06 * S).toFixed(1)} ${f(0.14, -0.22)}" stroke="${pale}" stroke-width="${Math.max(1.5, r * 0.03)}"/>`;
+      })()}
     </svg>`;
   const n = MENU.length;
   const rowH = Math.max(40, Math.min(66, (H - 160) / n));
