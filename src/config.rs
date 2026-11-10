@@ -93,6 +93,8 @@ pub struct Config {
     pub backup_retention_days: i64,
     pub last_backup: i64,
     pub check_updates: bool,
+    /// Synology: let the root Task Scheduler task install new versions.
+    pub auto_update: bool,
     pub start_with_windows: bool,
     pub close_to_tray: bool,
     pub advanced_mode: bool,
@@ -186,6 +188,7 @@ impl Default for Config {
             backup_retention_days: 28,
             last_backup: 0,
             check_updates: true,
+            auto_update: true,
             start_with_windows: false,
             close_to_tray: true,
             advanced_mode: false,

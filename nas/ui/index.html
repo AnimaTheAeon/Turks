@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turks</title>
+<link rel="stylesheet" href="turks.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- Pointing hand cursor (original artwork). -->
+    <symbol id="hand" viewBox="0 0 34 22">
+      <rect x="2" y="6" width="34" height="16" rx="5" fill="rgba(0,0,0,.35)" transform="translate(-1 0)"/>
+      <rect x="1" y="4" width="8" height="15" rx="2" fill="#c4c8d6" stroke="#1e1e28" stroke-width="1.4"/>
+      <rect x="7" y="3" width="15" height="16" rx="5" fill="#fafafc" stroke="#1e1e28" stroke-width="1.4"/>
+      <rect x="17" y="5" width="16" height="6" rx="3" fill="#fafafc" stroke="#1e1e28" stroke-width="1.4"/>
+      <rect x="17" y="11" width="7" height="4" rx="2" fill="#fafafc" stroke="#1e1e28" stroke-width="1.4"/>
+      <rect x="17" y="15" width="7" height="4" rx="2" fill="#fafafc" stroke="#1e1e28" stroke-width="1.4"/>
+      <path d="M10 7 L16 8" stroke="#c4c8d6" stroke-width="1.2"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="layout">
+  <section id="main" class="win"></section>
+
+  <aside class="side">
+    <nav id="menu" class="win"></nav>
+    <div class="spacer"></div>
+    <div class="win" id="info">
+      <div class="info-row"><span class="label">Time</span><span id="i-time">--:--:--</span></div>
+      <div class="info-row"><span class="label">Movies</span><span id="i-movies">0</span></div>
+      <div class="info-row link" id="i-missing-row" title="Open Wanted › Missing"><span class="label">Missing</span><span id="i-missing">0</span></div>
+      <div class="info-row"><span class="label">Disk</span><span id="i-disk">—</span></div>
+      <button id="mode" class="mode">MODE: SIMPLE</button>
+    </div>
+  </aside>
+
+  <footer id="statusbar" class="win"><span class="badge good"></span><span id="status-text">Connecting…</span></footer>
+</div>
+
+<div id="modal" class="modal"></div>
+<div id="toasts"></div>
+<div id="overlay" class="overlay-msg"><div class="win" style="max-width:460px"><h1 style="margin:0 0 6px;font-size:22px" id="overlay-title"></h1><div id="overlay-text"></div></div></div>
+
+<script src="app.js"></script>
+<script src="forms.js"></script>
+<script src="movies.js"></script>
+<script src="add.js"></script>
+<script src="activity.js"></script>
+<script src="settings.js"></script>
+<script src="system.js"></script>
+<script>Turks.start();</script>
+</body>
+</html>

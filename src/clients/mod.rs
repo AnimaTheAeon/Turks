@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use crate::model::{ClientKind, DownloadClient, Protocol};
 use crate::release::Release;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ItemStatus {
     Queued,
     Downloading,
@@ -20,7 +20,7 @@ pub enum ItemStatus {
     Warning,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct ClientItem {
     pub id: String,
     pub title: String,
@@ -47,7 +47,7 @@ fn http(timeout: u64) -> reqwest::blocking::Client {
         .timeout(Duration::from_secs(timeout))
         .cookie_store(true)
         .redirect(reqwest::redirect::Policy::none())
-        .user_agent(format!("Turks/{}", crate::updater::APP_VERSION))
+        .user_agent(format!("Turks/{}", crate::APP_VERSION))
         .danger_accept_invalid_certs(true)
         .build()
         .unwrap_or_default()

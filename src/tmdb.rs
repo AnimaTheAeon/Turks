@@ -26,7 +26,7 @@ pub struct Tmdb {
     http: reqwest::blocking::Client,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct SearchHit {
     pub tmdb_id: i64,
     pub title: String,
@@ -42,7 +42,7 @@ pub fn http_client(timeout_secs: u64) -> reqwest::blocking::Client {
     reqwest::blocking::Client::builder()
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(timeout_secs))
-        .user_agent(format!("Turks/{}", crate::updater::APP_VERSION))
+        .user_agent(format!("Turks/{}", crate::APP_VERSION))
         .build()
         .unwrap_or_default()
 }
