@@ -210,7 +210,7 @@ impl App {
 
         // Toolbar
         ui.horizontal_wrapped(|ui| {
-            ff::title(ui, "Movies", 26.0, TEXT);
+            ff::title(ui, "Movies", 26.0, TEXT());
             ui.add_space(8.0);
             ui.add(egui::TextEdit::singleline(&mut self.movies.search).hint_text("Find: title, year, genre, tag").desired_width(200.0));
             egui::ComboBox::from_id_salt("movie-filter").selected_text(self.movies.filter.label()).show_ui(ui, |ui| {
@@ -287,7 +287,7 @@ impl App {
                         let preview = crate::library::rename_preview(&self.core, &ids);
                         self.dialog = Some(Dialog::Rename { ids: ids.clone(), preview });
                     }
-                    if ui.button(RichText::new("Delete").color(BAD)).clicked() {
+                    if ui.button(RichText::new("Delete").color(BAD())).clicked() {
                         self.dialog = Some(Dialog::DeleteMovies { ids: ids.clone(), delete_files: false, exclusion: false });
                     }
                 });
@@ -301,7 +301,7 @@ impl App {
         if total == 0 {
             ui.add_space(30.0);
             ui.vertical_centered(|ui| {
-                ff::title(ui, "No movies yet", 22.0, TEXT);
+                ff::title(ui, "No movies yet", 22.0, TEXT());
                 ui.label(common::dim_text("Add one, or import the movies you already have."));
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
@@ -356,13 +356,13 @@ impl App {
                             let tex = self.images.poster(m.tmdb_id, &m.poster_path);
                             let resp = common::poster(ui, tex, &m.initials(), Vec2::new(pw, ph), st.color());
                             if self.movies.select_mode && self.movies.selected.contains(&m.id) {
-                                ui.painter().rect_stroke(resp.rect.expand(3.0), egui::CornerRadius::same(5), egui::Stroke::new(3.0, WARN), egui::StrokeKind::Outside);
+                                ui.painter().rect_stroke(resp.rect.expand(3.0), egui::CornerRadius::same(5), egui::Stroke::new(3.0, WARN()), egui::StrokeKind::Outside);
                             }
                             if resp.on_hover_text(format!("{}\n{}", m.display(), st.label())).clicked() {
                                 clicked = Some(m.id);
                             }
-                            ui.add(egui::Label::new(RichText::new(&m.title).color(TEXT).strong().size(13.0)).truncate());
-                            ui.label(RichText::new(if m.year > 0 { m.year.to_string() } else { "TBA".into() }).color(TEXT_DIM).size(12.0));
+                            ui.add(egui::Label::new(RichText::new(&m.title).color(TEXT()).strong().size(13.0)).truncate());
+                            ui.label(RichText::new(if m.year > 0 { m.year.to_string() } else { "TBA".into() }).color(TEXT_DIM()).size(12.0));
                         });
                         ui.add_space(gap - 8.0);
                     }
@@ -398,14 +398,14 @@ impl App {
                     ui.add_space(8.0);
                     ui.vertical(|ui| {
                         ui.set_width((ui.available_width() - 300.0).max(160.0));
-                        let title = ff::title(ui, &m.title, 20.0, if m.monitored { TEXT } else { TEXT_DIM });
+                        let title = ff::title(ui, &m.title, 20.0, if m.monitored { TEXT() } else { TEXT_DIM() });
                         if title.interact(egui::Sense::click()).clicked() {
                             clicked = Some(m.id);
                         }
-                        ui.label(RichText::new(format!("{} · {} · {}", if m.year > 0 { m.year.to_string() } else { "TBA".into() }, common::runtime(m.runtime, &self.cfg), m.genres.iter().take(3).cloned().collect::<Vec<_>>().join(", "))).color(TEXT_DIM).size(13.0));
+                        ui.label(RichText::new(format!("{} · {} · {}", if m.year > 0 { m.year.to_string() } else { "TBA".into() }, common::runtime(m.runtime, &self.cfg), m.genres.iter().take(3).cloned().collect::<Vec<_>>().join(", "))).color(TEXT_DIM()).size(13.0));
                         ui.horizontal(|ui| {
                             ff::stat_label(ui, "LV");
-                            ui.label(RichText::new(&profile).color(TEXT).size(13.0));
+                            ui.label(RichText::new(&profile).color(TEXT()).size(13.0));
                             if let Some(f) = &file {
                                 ui.add_space(6.0);
                                 common::quality_chip(ui, &f.quality);
@@ -426,14 +426,14 @@ impl App {
                             _ => (0.0, if m.monitored { "Monitored · no file yet".into() } else { "Not monitored".into() }),
                         };
                         ff::stat_bar(ui, frac, 260.0, Color32::from_rgb(70, 130, 230), st.color());
-                        ui.label(RichText::new(caption).color(TEXT_DIM).size(12.0));
+                        ui.label(RichText::new(caption).color(TEXT_DIM()).size(12.0));
                         if m.monitored && file.is_none() && dl.is_none() && ui.small_button("Search").clicked() {
                             search = Some(m.id);
                         }
                     });
                 });
                 if self.movies.select_mode && self.movies.selected.contains(&m.id) {
-                    ui.painter().rect_stroke(row.response.rect.expand(2.0), egui::CornerRadius::same(4), egui::Stroke::new(2.0, WARN), egui::StrokeKind::Outside);
+                    ui.painter().rect_stroke(row.response.rect.expand(2.0), egui::CornerRadius::same(4), egui::Stroke::new(2.0, WARN()), egui::StrokeKind::Outside);
                 }
                 ff::divider(ui);
             }
@@ -452,7 +452,7 @@ impl App {
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             egui::Grid::new("movie-table").striped(true).spacing([14.0, 6.0]).show(ui, |ui| {
                 for h in ["", "Title", "Year", "Profile", "Quality", "Status", "Size", "Release", "Added"] {
-                    ff::title(ui, h, 13.0, LABEL);
+                    ff::title(ui, h, 13.0, LABEL());
                 }
                 ui.end_row();
                 let lib = self.core.lib().clone();
@@ -466,7 +466,7 @@ impl App {
                     } else {
                         ff::badge(ui, if m.monitored { ff::Badge::Good } else { ff::Badge::Warn }, 12.0).on_hover_text(if m.monitored { "Monitored" } else { "Not monitored" });
                     }
-                    if ui.add(egui::Label::new(RichText::new(&m.title).color(TEXT).strong()).sense(egui::Sense::click())).clicked() {
+                    if ui.add(egui::Label::new(RichText::new(&m.title).color(TEXT()).strong()).sense(egui::Sense::click())).clicked() {
                         clicked = Some(m.id);
                     }
                     ui.label(if m.year > 0 { m.year.to_string() } else { "TBA".into() });
@@ -515,9 +515,9 @@ impl App {
             if ui.button("‹ Movies").clicked() {
                 back = true;
             }
-            ff::title(ui, "Status", 24.0, TEXT);
+            ff::title(ui, "Status", 24.0, TEXT());
             ui.add_space(10.0);
-            if ui.button(RichText::new("Search").color(GOOD).strong()).on_hover_text("Automatic search: grab the best release").clicked() {
+            if ui.button(RichText::new("Search").color(GOOD()).strong()).on_hover_text("Automatic search: grab the best release").clicked() {
                 self.core.run(Command::SearchMovies(vec![movie.id]));
             }
             if ui.button("Interactive search").clicked() {
@@ -550,7 +550,7 @@ impl App {
             if !movie.path.is_empty() && ui.button("Open folder").clicked() {
                 super::open_path(&movie.path);
             }
-            if ui.button(RichText::new("Delete").color(BAD)).clicked() {
+            if ui.button(RichText::new("Delete").color(BAD())).clicked() {
                 self.dialog = Some(Dialog::DeleteMovies { ids: vec![movie.id], delete_files: false, exclusion: false });
             }
         });
@@ -562,7 +562,7 @@ impl App {
             ui.add_space(14.0);
             ui.vertical(|ui| {
                 ui.set_width((ui.available_width() - 290.0).max(260.0));
-                ff::title(ui, &movie.title, 28.0, TEXT);
+                ff::title(ui, &movie.title, 28.0, TEXT());
                 let mut line = vec![];
                 if movie.year > 0 {
                     line.push(movie.year.to_string());
@@ -574,24 +574,24 @@ impl App {
                     line.push(movie.certification.clone());
                 }
                 line.push(movie.genres.join(", "));
-                ui.label(RichText::new(line.join(" · ")).color(TEXT_DIM));
+                ui.label(RichText::new(line.join(" · ")).color(TEXT_DIM()));
                 ui.horizontal(|ui| {
                     ff::tag(ui, state.label(), state.color());
                     let mut mon = movie.monitored;
                     if w::toggle_labeled(ui, &mut mon, "MONITORED", "UNMONITORED") {
                         self.core.save(Movie { monitored: mon, ..movie.clone() });
                     }
-                    ff::tag(ui, movie.status.label(), LABEL);
+                    ff::tag(ui, movie.status.label(), LABEL());
                 });
                 ui.add_space(4.0);
                 egui::ScrollArea::vertical().id_salt("overview").max_height(80.0).show(ui, |ui| {
-                    ui.add(egui::Label::new(RichText::new(&movie.overview).color(TEXT)).wrap());
+                    ui.add(egui::Label::new(RichText::new(&movie.overview).color(TEXT())).wrap());
                 });
                 ui.add_space(4.0);
                 let stat = |ui: &mut Ui, k: &str, v: String| {
                     ui.horizontal(|ui| {
-                        ui.add_sized([150.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL).strong()));
-                        ui.add(egui::Label::new(RichText::new(v).color(TEXT)).truncate());
+                        ui.add_sized([150.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL()).strong()));
+                        ui.add(egui::Label::new(RichText::new(v).color(TEXT())).truncate());
                     });
                 };
                 stat(ui, "Profile", profile.as_ref().map(|p| p.name.clone()).unwrap_or_default());
@@ -610,7 +610,7 @@ impl App {
                     stat(ui, "Collection", c.title.clone());
                 }
                 ui.horizontal(|ui| {
-                    ui.add_sized([150.0, 18.0], egui::Label::new(RichText::new("Tags").color(LABEL).strong()));
+                    ui.add_sized([150.0, 18.0], egui::Label::new(RichText::new("Tags").color(LABEL()).strong()));
                     let mut tags = movie.tags.clone();
                     if common::tags_editor(ui, "detail-tags", &self.core, &mut tags, &mut st.new_tag) {
                         self.core.save(Movie { tags, ..movie.clone() });
@@ -634,8 +634,8 @@ impl App {
                 ui.set_width(270.0);
                 ff::window(ui, |ui| {
                     ui.set_width(238.0);
-                    ff::title(ui, "Materia", 18.0, TEXT);
-                    ui.label(RichText::new("custom formats on this file").color(TEXT_DIM).size(12.0));
+                    ff::title(ui, "Materia", 18.0, TEXT());
+                    ui.label(RichText::new("custom formats on this file").color(TEXT_DIM()).size(12.0));
                     ui.add_space(4.0);
                     match (&file, &profile) {
                         (Some(f), Some(p)) => {
@@ -647,9 +647,9 @@ impl App {
                                 let score = p.format_items.iter().find(|x| x.format_id == *id).map(|x| x.score).unwrap_or(0);
                                 ui.horizontal(|ui| {
                                     materia_orb(ui, i, score);
-                                    ui.label(RichText::new(name).color(TEXT).size(13.0));
+                                    ui.label(RichText::new(name).color(TEXT()).size(13.0));
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        ui.label(RichText::new(format!("{score:+}")).color(if score >= 0 { GOOD } else { BAD }).size(12.0));
+                                        ui.label(RichText::new(format!("{score:+}")).color(if score >= 0 { GOOD() } else { BAD() }).size(12.0));
                                     });
                                 });
                             }
@@ -659,13 +659,13 @@ impl App {
                             ui.horizontal(|ui| {
                                 ff::stat_label(ui, "Format score");
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ff::title(ui, &format!("{total:+}"), 18.0, if total >= 0 { GOOD } else { BAD });
+                                    ff::title(ui, &format!("{total:+}"), 18.0, if total >= 0 { GOOD() } else { BAD() });
                                 });
                             });
                             let target = p.cutoff_format_score.max(1) as f32;
-                            ff::stat_bar(ui, (total as f32 / target).clamp(0.0, 1.0), 230.0, Color32::from_rgb(70, 130, 230), GOOD);
+                            ff::stat_bar(ui, (total as f32 / target).clamp(0.0, 1.0), 230.0, Color32::from_rgb(70, 130, 230), GOOD());
                             let cutoff_met = !crate::decision::cutoff_not_met(p, &f.quality, &ids, None);
-                            ui.label(RichText::new(if cutoff_met { "Cutoff met. Upgrades stop here." } else { "Below cutoff. Turks will look for upgrades." }).color(TEXT_DIM).size(12.0));
+                            ui.label(RichText::new(if cutoff_met { "Cutoff met. Upgrades stop here." } else { "Below cutoff. Turks will look for upgrades." }).color(TEXT_DIM()).size(12.0));
                         }
                         _ => {
                             ui.label(common::dim_text("No file yet."));
@@ -715,8 +715,8 @@ impl App {
         };
         let row = |ui: &mut Ui, k: &str, v: String| {
             ui.horizontal(|ui| {
-                ui.add_sized([150.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL).strong()));
-                ui.add(egui::Label::new(RichText::new(v).color(TEXT)).wrap());
+                ui.add_sized([150.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL()).strong()));
+                ui.add(egui::Label::new(RichText::new(v).color(TEXT())).wrap());
             });
         };
         row(ui, "File", f.relative_path.clone());
@@ -738,7 +738,7 @@ impl App {
         row(ui, "Added", common::when(f.date_added, &self.cfg));
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            if ui.button(RichText::new("Delete file").color(BAD)).clicked() {
+            if ui.button(RichText::new("Delete file").color(BAD())).clicked() {
                 self.dialog = Some(Dialog::Confirm {
                     title: "Delete file".into(),
                     text: format!("Delete {}? It goes to the recycle bin if one is set.", f.relative_path),
@@ -761,7 +761,7 @@ impl App {
             for e in walkdir::WalkDir::new(dir).max_depth(3).into_iter().flatten().filter(|e| e.file_type().is_file()) {
                 let size = e.metadata().map(|m| m.len()).unwrap_or(0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(e.path().strip_prefix(dir).unwrap_or(e.path()).display().to_string()).color(TEXT));
+                    ui.label(RichText::new(e.path().strip_prefix(dir).unwrap_or(e.path()).display().to_string()).color(TEXT()));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(common::dim_text(&crate::decision::human_size(size)));
                     });
@@ -781,8 +781,8 @@ impl App {
                             let tex = self.images.person(p.person_id, &p.profile_path);
                             let initials: String = p.name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect();
                             common::poster(ui, tex, &initials, Vec2::new(86.0, 120.0), Color32::TRANSPARENT);
-                            ui.add(egui::Label::new(RichText::new(&p.name).color(TEXT).size(12.0)).truncate());
-                            ui.add(egui::Label::new(RichText::new(&p.role).color(TEXT_DIM).size(11.0)).truncate());
+                            ui.add(egui::Label::new(RichText::new(&p.name).color(TEXT()).size(12.0)).truncate());
+                            ui.add(egui::Label::new(RichText::new(&p.role).color(TEXT_DIM()).size(11.0)).truncate());
                         });
                     }
                 });
@@ -816,7 +816,7 @@ impl App {
             return;
         };
         for e in &r.errors {
-            ui.label(RichText::new(e).color(WARN).size(12.0));
+            ui.label(RichText::new(e).color(WARN()).size(12.0));
         }
         if r.running || running {
             ui.horizontal(|ui| {
@@ -839,7 +839,7 @@ impl App {
         egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             egui::Grid::new("isearch").striped(true).spacing([10.0, 5.0]).show(ui, |ui| {
                 for h in ["", "Age", "Title", "Indexer", "Size", "Peers", "Language", "Quality", "Score", ""] {
-                    ff::title(ui, h, 13.0, LABEL);
+                    ff::title(ui, h, 13.0, LABEL());
                 }
                 ui.end_row();
                 for c in cands {
@@ -851,7 +851,7 @@ impl App {
                     }
                     let age = c.release.age_days();
                     ui.label(if age < 1.0 { format!("{:.0}h", age * 24.0) } else { format!("{:.0}d", age) });
-                    let title = sized_left(ui, 340.0, egui::Label::new(RichText::new(&c.release.title).color(if c.approved() { TEXT } else { TEXT_DIM }).size(13.0)).truncate().sense(egui::Sense::click()));
+                    let title = sized_left(ui, 340.0, egui::Label::new(RichText::new(&c.release.title).color(if c.approved() { TEXT() } else { TEXT_DIM() }).size(13.0)).truncate().sense(egui::Sense::click()));
                     let mut tip = c.release.title.clone();
                     if !c.format_names.is_empty() {
                         tip.push_str(&format!("\n\nCustom formats: {}", c.format_names.join(", ")));
@@ -872,10 +872,10 @@ impl App {
                         Protocol::Usenet => "usenet".into(),
                     });
                     ui.label(RichText::new(if c.parsed.languages.is_empty() { movie.original_language.clone() } else { c.parsed.languages.join(", ") }).size(12.0));
-                    ff::tag(ui, &crate::quality::full_name(&c.parsed.quality), LABEL);
-                    ui.label(RichText::new(format!("{:+}", c.score)).color(if c.score >= 0 { GOOD } else { BAD }));
+                    ff::tag(ui, &crate::quality::full_name(&c.parsed.quality), LABEL());
+                    ui.label(RichText::new(format!("{:+}", c.score)).color(if c.score >= 0 { GOOD() } else { BAD() }));
                     let label = if c.approved() { "Grab" } else { "Grab anyway" };
-                    if ui.small_button(RichText::new(label).color(if c.approved() { GOOD } else { WARN })).clicked() {
+                    if ui.small_button(RichText::new(label).color(if c.approved() { GOOD() } else { WARN() })).clicked() {
                         grab = Some((*c).clone());
                     }
                     ui.end_row();
@@ -895,26 +895,26 @@ impl App {
             egui::Grid::new(if show_movie { "history-all" } else { "history-movie" }).striped(true).spacing([12.0, 6.0]).show(ui, |ui| {
                 let heads: &[&str] = if show_movie { &["When", "Event", "Movie", "Release", "Quality", "Details"] } else { &["When", "Event", "Release", "Quality", "Details"] };
                 for h in heads {
-                    ff::title(ui, h, 13.0, LABEL);
+                    ff::title(ui, h, 13.0, LABEL());
                 }
                 ui.end_row();
                 for h in items {
-                    ui.label(RichText::new(common::when(h.date, &self.cfg)).color(TEXT_DIM).size(12.0));
+                    ui.label(RichText::new(common::when(h.date, &self.cfg)).color(TEXT_DIM()).size(12.0));
                     let color = match h.event {
-                        HistoryEvent::Grabbed => LABEL,
-                        HistoryEvent::Imported => GOOD,
-                        HistoryEvent::DownloadFailed => BAD,
-                        HistoryEvent::FileDeleted => WARN,
-                        _ => TEXT_DIM,
+                        HistoryEvent::Grabbed => LABEL(),
+                        HistoryEvent::Imported => GOOD(),
+                        HistoryEvent::DownloadFailed => BAD(),
+                        HistoryEvent::FileDeleted => WARN(),
+                        _ => TEXT_DIM(),
                     };
                     ff::tag(ui, h.event.label(), color);
                     if show_movie {
                         let name = lib.movies.get(&h.movie_id).map(|m| m.display()).unwrap_or_else(|| "(removed)".into());
-                        if ui.add(egui::Label::new(RichText::new(name).color(TEXT).strong()).sense(egui::Sense::click()).truncate()).clicked() && lib.movies.contains_key(&h.movie_id) {
+                        if ui.add(egui::Label::new(RichText::new(name).color(TEXT()).strong()).sense(egui::Sense::click()).truncate()).clicked() && lib.movies.contains_key(&h.movie_id) {
                             self.open_movie(h.movie_id);
                         }
                     }
-                    sized_left(ui, 320.0, egui::Label::new(RichText::new(&h.source_title).color(TEXT).size(12.0)).truncate());
+                    sized_left(ui, 320.0, egui::Label::new(RichText::new(&h.source_title).color(TEXT()).size(12.0)).truncate());
                     ui.label(RichText::new(crate::quality::full_name(&h.quality)).size(12.0));
                     let details = h.data.iter().filter(|(_, v)| !v.is_empty()).map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join("\n");
                     ui.label(common::dim_text("info")).on_hover_text(if details.is_empty() { "—".into() } else { details });
@@ -974,7 +974,7 @@ impl App {
             common::tags_editor(ui, "ed-tags", &self.core, &mut s.tags, &mut s.new_tag);
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("Save").color(GOOD).strong()).clicked() {
+                if ui.button(RichText::new("Save").color(GOOD()).strong()).clicked() {
                     result = Some(true);
                 }
                 if ui.button("Cancel").clicked() {
@@ -1038,7 +1038,7 @@ impl App {
         let close = common::modal(ctx, "manual-import", 860.0, |ui| {
             common::heading(ui, "Manual import");
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Folder").color(LABEL).strong());
+                ui.label(RichText::new("Folder").color(LABEL()).strong());
                 w::folder_field(ui, &mut s.folder, 460.0);
                 let busy = s.scanning.is_some();
                 if ui.add_enabled(!busy && !s.folder.trim().is_empty(), egui::Button::new(if busy { "Scanning…" } else { "Scan" })).clicked() {
@@ -1048,7 +1048,7 @@ impl App {
                 }
             });
             ui.horizontal(|ui| {
-                ui.label(RichText::new("How").color(LABEL).strong());
+                ui.label(RichText::new("How").color(LABEL()).strong());
                 for (i, l) in ["Move", "Copy", "Hardlink (or copy)"].iter().enumerate() {
                     if w::pill(ui, l, s.mode == i as u8).clicked() {
                         s.mode = i as u8;
@@ -1062,12 +1062,12 @@ impl App {
             egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
                 egui::Grid::new("mi-grid").striped(true).spacing([10.0, 6.0]).show(ui, |ui| {
                     for h in ["", "File", "Movie", "Quality", "Size", "Problems"] {
-                        ff::title(ui, h, 13.0, LABEL);
+                        ff::title(ui, h, 13.0, LABEL());
                     }
                     ui.end_row();
                     for (i, (on, d)) in s.rows.iter_mut().enumerate() {
                         ui.checkbox(on, "");
-                        ui.add(egui::Label::new(RichText::new(d.path.file_name().unwrap_or_default().to_string_lossy()).color(TEXT).size(12.0)).truncate()).on_hover_text(d.path.display().to_string());
+                        ui.add(egui::Label::new(RichText::new(d.path.file_name().unwrap_or_default().to_string_lossy()).color(TEXT()).size(12.0)).truncate()).on_hover_text(d.path.display().to_string());
                         let current = d.movie_id.and_then(|id| lib.movies.get(&id)).map(|m| m.display()).unwrap_or_else(|| "Choose movie…".into());
                         egui::ComboBox::from_id_salt(("mi-movie", i)).selected_text(current).width(220.0).show_ui(ui, |ui| {
                             ui.add(egui::TextEdit::singleline(&mut s.movie_search[i]).hint_text("filter"));
@@ -1087,9 +1087,9 @@ impl App {
                         ui.label(crate::decision::human_size(d.size));
                         let problems: Vec<&String> = d.rejections.iter().filter(|r| !r.starts_with("Couldn't tell")).collect();
                         if problems.is_empty() {
-                            ui.label(RichText::new("OK").color(GOOD));
+                            ui.label(RichText::new("OK").color(GOOD()));
                         } else {
-                            ui.label(RichText::new("check").color(WARN)).on_hover_text(problems.iter().map(|p| format!("• {p}")).collect::<Vec<_>>().join("\n"));
+                            ui.label(RichText::new("check").color(WARN())).on_hover_text(problems.iter().map(|p| format!("• {p}")).collect::<Vec<_>>().join("\n"));
                         }
                         ui.end_row();
                     }
@@ -1098,7 +1098,7 @@ impl App {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 let n = s.rows.iter().filter(|(on, d)| *on && d.movie_id.is_some()).count();
-                if ui.add_enabled(n > 0, egui::Button::new(RichText::new(format!("Import {n}")).color(GOOD).strong())).clicked() {
+                if ui.add_enabled(n > 0, egui::Button::new(RichText::new(format!("Import {n}")).color(GOOD()).strong())).clicked() {
                     result = Some(true);
                 }
                 if ui.button("Close").clicked() {

@@ -22,7 +22,18 @@
   </defs>
 </svg>
 
+<!-- Box of X: background grid and the home screen. -->
+<svg id="gbg" preserveAspectRatio="none"></svg>
+<div class="ghome" id="ghome">
+  <div class="bigorb" id="bigorb"></div>
+  <div id="gmenu"></div>
+  <div class="gstatus" id="ghome-status" title="Open System"></div>
+  <button class="ghint" id="gmode" title="Simple shows the settings most people need. Advanced shows everything Radarr has."><span class="node">MODE</span><span id="gmode-label">SIMPLE</span></button>
+  <button class="ghint" id="genter" style="right:60px"><span class="node">ENTER</span>SELECT</button>
+</div>
+
 <div class="layout">
+  <div id="gbar"><div class="gtitle" id="gtitle"></div><div class="gstatus" id="gstatus" title="Open System"></div></div>
   <section id="main" class="win"></section>
 
   <aside class="side">
@@ -36,6 +47,8 @@
       <button id="mode" class="mode">MODE: SIMPLE</button>
     </div>
   </aside>
+
+  <button class="ghint" id="gback"><span class="node">ESC</span><span id="gback-label">BACK</span></button>
 
   <footer id="statusbar" class="win"><span class="badge good"></span><span id="status-text">Connecting…</span></footer>
 </div>

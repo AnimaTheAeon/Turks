@@ -39,7 +39,7 @@ impl App {
             (s, s + Duration::days(41))
         };
         ui.horizontal(|ui| {
-            ff::title(ui, "Calendar", 26.0, TEXT);
+            ff::title(ui, "Calendar", 26.0, TEXT());
             ui.add_space(10.0);
             if ui.button("‹").clicked() {
                 self.calendar.anchor = Some(if week { anchor - Duration::days(7) } else { (anchor.with_day(1).unwrap() - Duration::days(1)).with_day(1).unwrap() });
@@ -50,7 +50,7 @@ impl App {
             if ui.button("›").clicked() {
                 self.calendar.anchor = Some(if week { anchor + Duration::days(7) } else { (anchor.with_day(28).unwrap() + Duration::days(7)).with_day(1).unwrap() });
             }
-            ff::title(ui, &if week { format!("{} – {}", start.format("%b %-d"), end.format("%b %-d, %Y")) } else { anchor.format("%B %Y").to_string() }, 20.0, WARN);
+            ff::title(ui, &if week { format!("{} – {}", start.format("%b %-d"), end.format("%b %-d, %Y")) } else { anchor.format("%B %Y").to_string() }, 20.0, WARN());
             ui.add_space(10.0);
             if w::pill(ui, "Month", !week).clicked() {
                 self.cfg.calendar_week_view = false;
@@ -63,7 +63,7 @@ impl App {
             ui.checkbox(&mut self.calendar.show_unmonitored, "Unmonitored");
         });
         ui.horizontal(|ui| {
-            for (c, l) in [(LABEL, "In cinemas"), (WARN, "Digital"), (Color32::from_rgb(200, 140, 255), "Physical")] {
+            for (c, l) in [(LABEL(), "In cinemas"), (WARN(), "Digital"), (Color32::from_rgb(200, 140, 255), "Physical")] {
                 ff::tag(ui, l, c);
             }
             ui.label(common::dim_text("· green = downloaded, red = missing"));
@@ -94,7 +94,7 @@ impl App {
         ui.horizontal(|ui| {
             for i in 0..7 {
                 let d = days[((i + first_dow) % 7) as usize];
-                ui.add_sized([col_w, 18.0], egui::Label::new(RichText::new(d).color(LABEL).strong()));
+                ui.add_sized([col_w, 18.0], egui::Label::new(RichText::new(d).color(LABEL()).strong()));
             }
         });
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
@@ -104,21 +104,28 @@ impl App {
                         let day = start + Duration::days((r * 7 + c) as i64);
                         let (rect, _) = ui.allocate_exact_size(Vec2::new(col_w, cell_h), Sense::hover());
                         let in_month = week || day.month() == anchor.month();
-                        let fill = if day == today { Color32::from_rgba_premultiplied(64, 112, 210, 90) } else { Color32::from_rgba_premultiplied(8, 12, 52, if in_month { 120 } else { 50 }) };
-                        ui.painter().rect(rect, egui::CornerRadius::same(4), fill, egui::Stroke::new(1.0, Color32::from_rgba_premultiplied(150, 160, 220, 60)), egui::StrokeKind::Inside);
+                        let green = ff::is_green();
+                        let fill = match (day == today, green) {
+                            (true, false) => Color32::from_rgba_premultiplied(64, 112, 210, 90),
+                            (true, true) => Color32::from_rgba_premultiplied(60, 110, 16, 110),
+                            (false, false) => Color32::from_rgba_premultiplied(8, 12, 52, if in_month { 120 } else { 50 }),
+                            (false, true) => Color32::from_rgba_premultiplied(2, 16, 2, if in_month { 140 } else { 60 }),
+                        };
+                        let edge = if green { Color32::from_rgba_unmultiplied(150, 255, 70, 50) } else { Color32::from_rgba_premultiplied(150, 160, 220, 60) };
+                        ui.painter().rect(rect, egui::CornerRadius::same(if green { 1 } else { 4 }), fill, egui::Stroke::new(1.0, edge), egui::StrokeKind::Inside);
                         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(4.0)).layout(egui::Layout::top_down(egui::Align::Min)));
-                        child.label(RichText::new(day.day().to_string()).color(if in_month { TEXT } else { TEXT_DIM }).strong().size(12.0));
+                        child.label(RichText::new(day.day().to_string()).color(if in_month { TEXT() } else { TEXT_DIM() }).strong().size(12.0));
                         for (_, k, m) in events.iter().filter(|e| e.0 == day) {
                             let color = match k {
-                                Kind::Cinema => LABEL,
-                                Kind::Digital => WARN,
+                                Kind::Cinema => LABEL(),
+                                Kind::Digital => WARN(),
                                 Kind::Physical => Color32::from_rgb(200, 140, 255),
                             };
                             let has = m.movie_file_id.is_some();
                             let resp = child
                                 .horizontal(|ui| {
                                     let (dot, _) = ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
-                                    ui.painter().circle_filled(dot.center(), 4.0, if has { GOOD } else if day <= today { BAD } else { color });
+                                    ui.painter().circle_filled(dot.center(), 4.0, if has { GOOD() } else if day <= today { BAD() } else { color });
                                     ui.add(egui::Label::new(RichText::new(&m.title).color(color).size(12.0)).truncate());
                                 })
                                 .response

@@ -45,7 +45,9 @@ Turks.pages.settings = {
     const nav = el("div.subnav", SECTIONS.filter(([, , a]) => advanced || !a).map(([k, l]) => menuItem(l, k === section, () => go("settings", k), "sub-item")));
     const body = el("div.scroll");
     main.append(el("div.page",
-      el("div.page-head", el("h1", "Settings"), el("span.dim", advanced ? "Advanced mode: showing everything" : "Simple mode: the settings most people need (switch with MODE in the side window)")),
+      el("div.page-head", el("h1", "Settings"),
+        el("span.dim", advanced ? "Advanced mode: showing everything" : isGreen() ? "Simple mode: the settings most people need" : "Simple mode: the settings most people need (switch with MODE in the side window)"),
+        isGreen() ? el("button", { onclick: async () => { await saveConfig({ advanced_mode: !advanced }); renderInfo(); rerender(); } }, advanced ? "MODE: ADVANCED" : "MODE: SIMPLE") : null),
       el("div.divider"), el("div.split", nav, body)));
     await loadLists(["tag", "root", "profile"]);
     await ({ media: sMedia, profiles: sProfiles, quality: sQuality, formats: sFormats, indexers: sIndexers, clients: sClients, lists: sLists,
@@ -472,7 +474,13 @@ async function updatePanel(box) {
 }
 
 async function sUi(body) {
-  add(body, ...head("Calendar"),
+  add(body, ...head("Look"),
+    field("Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it.",
+      select([["ff", "FFVII menu"], ["green", "Box of X"]], Turks.cfg.theme || "ff", async (v) => {
+        const r = await saveConfig({ theme: v });
+        if (r) applyTheme(true);
+      })),
+    ...head("Calendar"),
     cSelect("first_day_of_week", "First day of the week", "", [[0, "Sunday"], [1, "Monday"]]),
     ...head("Dates and times"),
     cToggle("time_24h", "24-hour time", ""),

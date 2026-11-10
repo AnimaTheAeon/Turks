@@ -178,7 +178,7 @@ Turks.pages.calendar = {
     const prev = new Date(y, mo - 1, 1), next = new Date(y, mo + 1, 1);
     const ical = Turks.state && Turks.state.api ? `http://${location.hostname}:${Turks.state.api.port}/feed/v3/calendar/turks.ics?apikey=${Turks.state.api.key}` : "";
     main.append(el("div.page",
-      el("div.page-head", el("h1", base.toLocaleDateString(undefined, { month: "long", year: "numeric" })), el("span.grow"),
+      el("div.page-head", el("h1.keep", base.toLocaleDateString(undefined, { month: "long", year: "numeric" })), el("span.grow"),
         el("span.small", el("span.warn", "▌"), "Cinemas ", el("span.info", "▌"), "Digital ", el("span", { style: { color: "#c79cff" } }, "▌"), "Disc"),
         el("button", { onclick: () => go("calendar", key(prev)) }, "‹"), el("button", { onclick: () => go("calendar") }, "Today"), el("button", { onclick: () => go("calendar", key(next)) }, "›"),
         ical ? el("button", { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(ical); openModal({ title: "Calendar feed", body: [el("p", "Subscribe to this address in Google Calendar, Outlook or your phone. 'Allow other computers' must be on in Settings › General."), el("input.command", { type: "text", readonly: true, value: ical })], size: "narrow" }); } }, "iCal") : null),

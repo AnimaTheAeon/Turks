@@ -18,7 +18,7 @@ pub struct SystemState {
 impl App {
     pub fn page_system(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            ff::title(ui, "System", 26.0, TEXT);
+            ff::title(ui, "System", 26.0, TEXT());
             ui.add_space(10.0);
             for (i, l) in ["Status", "Tasks", "Backup", "Updates", "Events", "Parse"].iter().enumerate() {
                 if w::pill(ui, l, self.system.tab == i as u8).clicked() {
@@ -48,14 +48,14 @@ impl App {
         if health.is_empty() {
             ui.horizontal(|ui| {
                 ff::badge(ui, ff::Badge::Good, 16.0);
-                ui.label(RichText::new("Everything looks good.").color(GOOD));
+                ui.label(RichText::new("Everything looks good.").color(GOOD()));
             });
         }
         for h in health {
             ui.horizontal(|ui| {
                 ff::badge(ui, match h.level { HealthLevel::Error => ff::Badge::Bad, HealthLevel::Warning => ff::Badge::Warn, HealthLevel::Notice => ff::Badge::Good }, 16.0);
-                ui.label(RichText::new(&h.source).color(LABEL).strong());
-                ui.add(egui::Label::new(RichText::new(&h.message).color(TEXT)).wrap());
+                ui.label(RichText::new(&h.source).color(LABEL()).strong());
+                ui.add(egui::Label::new(RichText::new(&h.message).color(TEXT())).wrap());
             });
         }
         w::section(ui, "Disk space");
@@ -64,8 +64,8 @@ impl App {
             let free = crate::import::free_space(std::path::Path::new(&r)).unwrap_or(0);
             let total = fs2::total_space(&r).unwrap_or(0).max(1);
             ui.horizontal(|ui| {
-                ui.add_sized([260.0, 18.0], egui::Label::new(RichText::new(&r).color(TEXT)).truncate());
-                ff::stat_bar(ui, 1.0 - free as f32 / total as f32, 240.0, egui::Color32::from_rgb(70, 130, 230), if free < total / 10 { BAD } else { GOOD });
+                ui.add_sized([260.0, 18.0], egui::Label::new(RichText::new(&r).color(TEXT())).truncate());
+                ff::stat_bar(ui, 1.0 - free as f32 / total as f32, 240.0, egui::Color32::from_rgb(70, 130, 230), if free < total / 10 { BAD() } else { GOOD() });
                 ui.label(common::dim_text(&format!("{} free of {}", crate::decision::human_size(free), crate::decision::human_size(total))));
             });
         }
@@ -81,8 +81,8 @@ impl App {
         ];
         for (k, v) in rows {
             ui.horizontal(|ui| {
-                ui.add_sized([140.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL).strong()));
-                ui.label(RichText::new(v).color(TEXT));
+                ui.add_sized([140.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL()).strong()));
+                ui.label(RichText::new(v).color(TEXT()));
             });
         }
         ui.horizontal(|ui| {
@@ -98,11 +98,11 @@ impl App {
         let tasks = self.core.status().tasks.clone();
         egui::Grid::new("tasks").striped(true).spacing([16.0, 6.0]).show(ui, |ui| {
             for h in ["Task", "Every", "Last run", "Took", "Next run", ""] {
-                ff::title(ui, h, 13.0, LABEL);
+                ff::title(ui, h, 13.0, LABEL());
             }
             ui.end_row();
             for t in tasks {
-                ui.label(RichText::new(t.name).color(TEXT).strong());
+                ui.label(RichText::new(t.name).color(TEXT()).strong());
                 let mins = t.interval.as_secs() / 60;
                 ui.label(if mins == 0 { format!("{}s", t.interval.as_secs()) } else if mins < 120 { format!("{mins} min") } else { format!("{} h", mins / 60) });
                 ui.label(common::when(t.last_run, &self.cfg));
@@ -126,9 +126,9 @@ impl App {
                 } else {
                     ff::badge(ui, if c.failed { ff::Badge::Bad } else { ff::Badge::Good }, 14.0);
                 }
-                ui.label(RichText::new(c.command.label()).color(TEXT));
+                ui.label(RichText::new(c.command.label()).color(TEXT()));
                 ui.label(common::when(Some(c.started), &self.cfg));
-                ui.add(egui::Label::new(RichText::new(&c.message).color(if c.failed { BAD } else { TEXT_DIM }).size(12.0)).truncate());
+                ui.add(egui::Label::new(RichText::new(&c.message).color(if c.failed { BAD() } else { TEXT_DIM() }).size(12.0)).truncate());
                 ui.end_row();
             }
         });
@@ -136,10 +136,10 @@ impl App {
 
     fn sys_backup(&mut self, ui: &mut Ui) {
         if self.restore_pending {
-            ui.label(RichText::new("A restore is waiting. Restart Turks to finish it.").color(WARN).strong());
+            ui.label(RichText::new("A restore is waiting. Restart Turks to finish it.").color(WARN()).strong());
         }
         ui.horizontal(|ui| {
-            if ui.button(RichText::new("Back up now").color(GOOD)).clicked() {
+            if ui.button(RichText::new("Back up now").color(GOOD())).clicked() {
                 let core = self.core.clone();
                 std::thread::spawn(move || match crate::backup::create(&core, "manual") {
                     Ok(p) => core.toast(format!("Backup saved: {}", p.display())),
@@ -165,14 +165,14 @@ impl App {
         egui::Grid::new("backups").striped(true).spacing([16.0, 6.0]).show(ui, |ui| {
             for (p, size, t) in list {
                 let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
-                ui.label(RichText::new(&name).color(TEXT));
+                ui.label(RichText::new(&name).color(TEXT()));
                 ui.label(crate::decision::human_size(size));
                 let dt: chrono::DateTime<chrono::Utc> = t.into();
                 ui.label(common::when(Some(dt), &self.cfg));
                 if ui.small_button("Restore").clicked() {
                     action = Some((true, p.clone()));
                 }
-                if ui.small_button(RichText::new("Delete").color(BAD)).clicked() {
+                if ui.small_button(RichText::new("Delete").color(BAD())).clicked() {
                     action = Some((false, p.clone()));
                 }
                 ui.end_row();
@@ -190,7 +190,7 @@ impl App {
     fn sys_updates(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ff::stat_label(ui, "Installed");
-            ui.label(RichText::new(format!("v{}", crate::updater::APP_VERSION)).color(TEXT).strong());
+            ui.label(RichText::new(format!("v{}", crate::updater::APP_VERSION)).color(TEXT()).strong());
         });
         ui.add_space(6.0);
         match self.updater.state() {
@@ -201,7 +201,7 @@ impl App {
                 });
             }
             crate::updater::State::Available(r) => {
-                ui.label(RichText::new(format!("v{} is available.", r.version)).color(GOOD).strong());
+                ui.label(RichText::new(format!("v{} is available.", r.version)).color(GOOD()).strong());
                 if ui.button("Show update").clicked() {
                     self.updater.dismissed.store(false, std::sync::atomic::Ordering::SeqCst);
                 }
@@ -240,12 +240,12 @@ impl App {
                     continue;
                 }
                 let color = match l.level {
-                    Level::Info => TEXT,
-                    Level::Warn => WARN,
-                    Level::Error => BAD,
+                    Level::Info => TEXT(),
+                    Level::Warn => WARN(),
+                    Level::Error => BAD(),
                 };
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(&l.time).color(TEXT_DIM).size(12.0));
+                    ui.label(RichText::new(&l.time).color(TEXT_DIM()).size(12.0));
                     ui.add(egui::Label::new(RichText::new(&l.text).color(color).size(13.0)).wrap());
                 });
             }
@@ -262,7 +262,7 @@ impl App {
         }
         ff::divider(ui);
         let Some(p) = crate::parser::parse_movie_title(&t, false) else {
-            ui.label(RichText::new("Turks couldn't read a movie title and year from that.").color(BAD));
+            ui.label(RichText::new("Turks couldn't read a movie title and year from that.").color(BAD()));
             return;
         };
         let lib = self.core.lib().clone();
@@ -288,8 +288,8 @@ impl App {
         ];
         for (k, v) in rows {
             ui.horizontal(|ui| {
-                ui.add_sized([140.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL).strong()));
-                ui.label(RichText::new(v).color(TEXT));
+                ui.add_sized([140.0, 18.0], egui::Label::new(RichText::new(k).color(LABEL()).strong()));
+                ui.label(RichText::new(v).color(TEXT()));
             });
         }
     }
