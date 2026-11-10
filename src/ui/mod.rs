@@ -84,6 +84,12 @@ pub struct App {
     pub green_in_page: bool,
     /// Box of X: highlighted menu entry on the home screen.
     pub green_cursor: usize,
+    /// Box of X transitions: zooming into the orb to open a page, the page
+    /// coming out of the glow, and both reversed on BACK.
+    pub green_zoom: Option<(Page, std::time::Instant)>,
+    pub green_reveal: Option<std::time::Instant>,
+    pub green_leave: Option<std::time::Instant>,
+    pub green_unzoom: Option<std::time::Instant>,
 }
 
 impl App {
@@ -132,6 +138,10 @@ impl App {
             first_run,
             green_in_page: false,
             green_cursor: 0,
+            green_zoom: None,
+            green_reveal: None,
+            green_leave: None,
+            green_unzoom: None,
             core,
         }
     }
