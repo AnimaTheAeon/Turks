@@ -40,10 +40,23 @@ fn regex_match(pattern: &str, text: &str) -> bool {
     if pattern.trim().is_empty() {
         return false;
     }
-    // Radarr patterns are .NET regexes, case-insensitive.
-    match fancy_regex::Regex::new(&format!("(?i){pattern}")) {
-        Ok(r) => r.is_match(text).unwrap_or(false),
-        Err(_) => text.to_lowercase().contains(&pattern.to_lowercase()),
+    // Radarr patterns are .NET regexes, case-insensitive. Compiling one is
+    // far slower than running it, so each pattern is compiled once and kept.
+    static COMPILED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, Option<std::sync::Arc<fancy_regex::Regex>>>>> =
+        std::sync::LazyLock::new(Default::default);
+    let re = {
+        let mut cache = COMPILED.lock().unwrap_or_else(|e| e.into_inner());
+        if cache.len() > 5000 {
+            cache.clear();
+        }
+        cache
+            .entry(pattern.to_string())
+            .or_insert_with(|| fancy_regex::Regex::new(&format!("(?i){pattern}")).ok().map(std::sync::Arc::new))
+            .clone()
+    };
+    match re {
+        Some(r) => r.is_match(text).unwrap_or(false),
+        None => text.to_lowercase().contains(&pattern.to_lowercase()),
     }
 }
 

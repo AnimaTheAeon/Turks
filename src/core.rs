@@ -252,6 +252,9 @@ impl Core {
             T::map_mut(lib).insert(item.id(), item.clone());
         });
         self.db.put(&item);
+        if T::KIND == "format" {
+            crate::decision::formats_changed();
+        }
         self.repaint();
         item
     }
@@ -269,6 +272,9 @@ impl Core {
             out
         });
         self.db.put_many(&items);
+        if T::KIND == "format" {
+            crate::decision::formats_changed();
+        }
         self.repaint();
         items
     }
@@ -276,6 +282,9 @@ impl Core {
     pub fn remove<T: Entity>(&self, id: Id) -> Option<T> {
         let r = self.with_lib(|lib| T::map_mut(lib).remove(&id));
         self.db.delete::<T>(id);
+        if T::KIND == "format" {
+            crate::decision::formats_changed();
+        }
         self.repaint();
         r
     }
