@@ -68,7 +68,7 @@ impl App {
             }
             ui.label(common::dim_text("· green = downloaded, red = missing"));
             if self.cfg.api_enabled && ui.small_button("Copy iCal link").on_hover_text("Subscribe to this in your phone or desktop calendar (Turks' API must be reachable from that device: Settings › General › Allow other computers)").clicked() {
-                let url = format!("http://{}:{}{}/feed/v3/calendar/turks.ics?apikey={}", local_ip(), self.cfg.api_port, self.cfg.url_base, self.cfg.api_key);
+                let url = format!("http://{}:{}{}/feed/v3/calendar/turks.ics?key={}", local_ip(), self.cfg.api_port, self.cfg.url_base, self.cfg.calendar_key);
                 let _ = arboard::Clipboard::new().and_then(|mut c| c.set_text(url));
                 self.notify("Calendar link copied.");
             }
@@ -88,8 +88,14 @@ impl App {
         }
         let days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         let col_w = (ui.available_width() - 6.0 * 6.0) / 7.0;
-        let rows = if week { 1 } else { 6 };
-        let cell_h = if week { (ui.available_height() - 30.0).max(200.0) } else { ((ui.available_height() - 30.0) / 6.0).max(80.0) };
+        // Only as many week rows as the month needs, sized so they all fit.
+        let rows = if week {
+            1
+        } else {
+            (0..6).take_while(|r| *r == 0 || { let d = start + Duration::days(*r as i64 * 7); d.month() == anchor.month() && d.year() == anchor.year() }).count().max(4)
+        };
+        let gap = ui.spacing().item_spacing.y;
+        let cell_h = if week { (ui.available_height() - 34.0).max(200.0) } else { ((ui.available_height() - 58.0 - gap * rows as f32) / rows as f32).max(64.0) };
         let mut open = None;
         ui.horizontal(|ui| {
             for i in 0..7 {
@@ -105,14 +111,20 @@ impl App {
                         let (rect, _) = ui.allocate_exact_size(Vec2::new(col_w, cell_h), Sense::hover());
                         let in_month = week || day.month() == anchor.month();
                         let green = ff::is_green();
-                        let fill = match (day == today, green) {
-                            (true, false) => Color32::from_rgba_premultiplied(64, 112, 210, 90),
-                            (true, true) => Color32::from_rgba_premultiplied(60, 110, 16, 110),
-                            (false, false) => Color32::from_rgba_premultiplied(8, 12, 52, if in_month { 120 } else { 50 }),
-                            (false, true) => Color32::from_rgba_premultiplied(2, 16, 2, if in_month { 140 } else { 60 }),
+                        let fill = if green {
+                            Color32::from_rgba_premultiplied(2, 16, 2, if in_month { 140 } else { 60 })
+                        } else {
+                            Color32::from_rgba_premultiplied(8, 12, 52, if in_month { 120 } else { 50 })
                         };
-                        let edge = if green { Color32::from_rgba_unmultiplied(150, 255, 70, 50) } else { Color32::from_rgba_premultiplied(150, 160, 220, 60) };
-                        ui.painter().rect(rect, egui::CornerRadius::same(if green { 1 } else { 4 }), fill, egui::Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+                        // Today gets a quiet outline, not a bright block.
+                        let edge = if day == today {
+                            egui::Stroke::new(1.5, WARN().gamma_multiply(0.8))
+                        } else if green {
+                            egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(150, 255, 70, 50))
+                        } else {
+                            egui::Stroke::new(1.0, Color32::from_rgba_premultiplied(150, 160, 220, 60))
+                        };
+                        ui.painter().rect(rect, egui::CornerRadius::same(if green { 1 } else { 4 }), fill, edge, egui::StrokeKind::Inside);
                         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(4.0)).layout(egui::Layout::top_down(egui::Align::Min)));
                         child.label(RichText::new(day.day().to_string()).color(if in_month { TEXT() } else { TEXT_DIM() }).strong().size(12.0));
                         for (_, k, m) in events.iter().filter(|e| e.0 == day) {

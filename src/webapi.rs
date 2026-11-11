@@ -439,6 +439,12 @@ fn route_request(core: &Core, post: bool, route: &str, q: &HashMap<String, Strin
             core.set_cfg(cfg.clone());
             ok(json!({ "api_key": cfg.api_key }))
         }
+        (true, "config/calendarkey") => {
+            let mut cfg = core.cfg();
+            cfg.calendar_key = crate::config::random_key();
+            core.set_cfg(cfg);
+            ok(json!({ "ok": true }))
+        }
         (true, "naming/example") => {
             let mut cfg = core.cfg();
             if let Some(f) = v.get("standard_movie_format").and_then(|x| x.as_str()) {
@@ -592,7 +598,7 @@ fn state(core: &Core) -> Value {
         "toasts": toasts,
         "tasks": tasks,
         "client_errors": client_errors,
-        "api": { "enabled": cfg.api_enabled, "port": cfg.api_port, "bind_all": cfg.api_bind_all, "key": cfg.api_key },
+        "api": { "enabled": cfg.api_enabled, "port": cfg.api_port, "bind_all": cfg.api_bind_all, "key": cfg.api_key, "calendar_key": cfg.calendar_key },
         "ffprobe": crate::mediainfo::ffprobe_path(&cfg.ffprobe_path),
     })
 }

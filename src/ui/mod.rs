@@ -11,7 +11,6 @@ mod movies;
 mod settings;
 mod system;
 pub mod theme;
-mod wanted;
 mod widgets;
 
 use std::sync::mpsc::Receiver;
@@ -34,19 +33,26 @@ pub enum Page {
     Collections,
     Calendar,
     Activity,
-    Wanted,
     Settings,
     System,
+}
+
+impl Page {
+    /// The menu entry a page belongs to: Discover and Collections are tabs
+    /// of Add Movie.
+    pub fn menu(self) -> Page {
+        match self {
+            Page::Discover | Page::Collections => Page::Add,
+            p => p,
+        }
+    }
 }
 
 const MENU: &[(Page, &str)] = &[
     (Page::Movies, "Movies"),
     (Page::Add, "Add Movie"),
-    (Page::Discover, "Discover"),
-    (Page::Collections, "Collections"),
     (Page::Calendar, "Calendar"),
     (Page::Activity, "Activity"),
-    (Page::Wanted, "Wanted"),
     (Page::Settings, "Settings"),
     (Page::System, "System"),
 ];
@@ -65,7 +71,6 @@ pub struct App {
     pub collections: add::CollectionsState,
     pub activity: activity::ActivityState,
     pub calendar: calendar::CalendarState,
-    pub wanted: wanted::WantedState,
     pub settings: settings::SettingsState,
     pub system: system::SystemState,
     pub dialog: Option<common::Dialog>,
@@ -121,7 +126,6 @@ impl App {
             collections: Default::default(),
             activity: Default::default(),
             calendar: Default::default(),
-            wanted: Default::default(),
             settings: Default::default(),
             system: Default::default(),
             dialog: None,
@@ -236,7 +240,6 @@ impl App {
             Page::Collections => self.page_collections(ui),
             Page::Calendar => self.page_calendar(ui),
             Page::Activity => self.page_activity(ui),
-            Page::Wanted => self.page_wanted(ui),
             Page::Settings => self.page_settings(ui),
             Page::System => self.page_system(ui),
         }
@@ -270,7 +273,7 @@ impl App {
         let info = Rect::from_min_max(pos2(menu.left(), main.bottom() - info_h), pos2(full.right(), main.bottom()));
         let bar = Rect::from_min_max(pos2(full.left(), full.bottom() - bar_h), full.max);
 
-        let current = self.page;
+        let current = self.page.menu();
         let mut goto = None;
         ff::window_at(ui, menu, "menu", |ui| {
             for (page, label) in MENU {
@@ -315,7 +318,8 @@ impl App {
                 .clicked();
         });
         if go_wanted {
-            self.go(Page::Wanted);
+            self.go(Page::Movies);
+            self.movies.filter = movies::Filter::Missing;
         }
         if mode_clicked {
             self.cfg.advanced_mode = !advanced;

@@ -66,6 +66,17 @@ pub fn check(core: &Core) {
         if stuck > 0 {
             out.push(issue("Downloads", HealthLevel::Warning, format!("{stuck} download(s) need attention in Activity › Queue.")));
         }
+        // Synology: with no recycle bin folder set, deletes go to the shared
+        // folder's own recycle bin, if it's turned on.
+        #[cfg(not(windows))]
+        if cfg.recycle_bin.trim().is_empty() {
+            for r in lib.root_folders.values() {
+                let p = Path::new(&r.path);
+                if r.path.starts_with("/volume") && p.is_dir() && crate::import::share_recycle_dir(p).is_none() {
+                    out.push(issue("Recycle bin", HealthLevel::Notice, format!("The recycle bin is off for the shared folder holding {}, so deleted movies are gone for good. Turn it on in Control Panel › Shared Folder › Edit.", r.path)));
+                }
+            }
+        }
         if !cfg.recycle_bin.trim().is_empty() && !Path::new(cfg.recycle_bin.trim()).is_dir() {
             out.push(issue("Recycle bin", HealthLevel::Warning, format!("Recycle bin folder doesn't exist: {}", cfg.recycle_bin)));
         }

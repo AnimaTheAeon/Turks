@@ -59,13 +59,21 @@ function hitRow(h, inLib, onAdded) {
     el("div.o", h.overview || "")));
 }
 
+/** The four ways to add movies, shown at the top of each of them. */
+function addTabs(here) {
+  return el("div.tabs",
+    pill("Search", here === "search", () => go("add")),
+    pill("Discover", here === "discover", () => go("discover")),
+    pill("Collections", here === "collections", () => go("collections")),
+    pill("Import library", here === "import", () => go("add", "import")));
+}
+
 Turks.pages.add = {
   async render(main, arg) {
     const tab = arg === "import" ? "import" : "search";
     const body = el("div.scroll");
     main.append(el("div.page",
-      el("div.page-head", el("h1", "Add Movie"), el("span.grow"),
-        el("div.tabs", pill("Search TMDb", tab === "search", () => go("add")), pill("Library import", tab === "import", () => go("add", "import")))),
+      el("div.page-head", el("h1", "Add Movie"), addTabs(tab)),
       el("div.divider"), body));
     if (tab === "import") return libraryImport(body);
 
@@ -162,9 +170,9 @@ Turks.pages.discover = {
     const which = arg || "popular";
     const body = el("div.scroll");
     main.append(el("div.page",
-      el("div.page-head", el("h1", "Discover"), el("span.grow"),
-        el("div.tabs", ...[["popular", "Popular"], ["top_rated", "Top rated"], ["now_playing", "In cinemas"], ["upcoming", "Upcoming"]].map(([k, l]) => pill(l, k === which, () => go("discover", k))))),
-      el("p.sub", "From TMDb. Click a poster to add it."),
+      el("div.page-head", el("h1", "Add Movie"), addTabs("discover")),
+      el("div.toolbar", ...[["popular", "Popular"], ["top_rated", "Top rated"], ["now_playing", "In cinemas"], ["upcoming", "Upcoming"]].map(([k, l]) => pill(l, k === which, () => go("discover", k))),
+        el("span.dim.small", "From TMDb. Click a poster to add it.")),
       el("div.divider"), body));
     body.append(el("div.row", el("span.spin"), "Loading…"));
     const [hits, movies] = await Promise.all([api("tmdb/discover", undefined, { which }), api("movies")]);
@@ -185,8 +193,8 @@ Turks.pages.collections = {
     const movies = await api("movies");
     const body = el("div.scroll");
     main.append(el("div.page",
-      el("div.page-head", el("h1", "Collections"), el("span.grow"),
-        el("button", { onclick: () => act("command", { name: "collections" }, null, "Refreshing collections…") }, "Refresh")),
+      el("div.page-head", el("h1", "Add Movie"), addTabs("collections"), el("span.grow"),
+        el("button", { onclick: () => act("command", { name: "collections" }, null, "Refreshing collections…") }, "Refresh collections")),
       el("p.sub", "TMDb collections of movies in your library. Follow one to add its other movies automatically."),
       el("div.divider"), body));
     // Collections Turks follows, plus ones only known from movies.

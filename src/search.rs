@@ -296,6 +296,7 @@ pub fn grab(core: &Core, c: &Candidate, interactive: bool) -> Result<String, Str
         added: Some(Utc::now()),
         from_interactive: interactive,
         seen_in_client: false,
+        last_progress: Some(Utc::now()),
     });
     let mut data = std::collections::BTreeMap::new();
     data.insert("indexer".into(), c.release.indexer.clone());

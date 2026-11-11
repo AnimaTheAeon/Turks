@@ -30,10 +30,17 @@ back button returns to it).
 - Movie "Status" screen: details, file and media info, history, cast and crew, and a
   **Materia** panel showing the custom formats on the file and its score
 - Bulk select: edit monitoring, profile, availability, root folder (moves files), tags; search, refresh, rename, delete
-- Collections: follow TMDb collections and add the missing movies
-- Discover: trending, popular, upcoming, in cinemas, top rated, and recommendations from your library
-- Calendar (month/week) with cinema, digital and physical release dates, plus an **iCal feed** for your phone
-- Wanted: missing and cutoff-unmet lists with search buttons
+- Six pages: Movies, Add Movie, Calendar, Activity, Settings, System
+- Add Movie has four tabs: Search, Discover (trending, popular, upcoming, in cinemas, top rated),
+  Collections (follow a TMDb collection and add its missing movies) and Import library
+- Calendar (month/week) with cinema, digital and physical release dates, plus an **iCal link** for
+  your phone. The link has its own read-only key, so it can't be used to change anything
+- Missing and upgrade-wanted movies are filters on the Movies page, with a "Search all" button and
+  a colour key for the poster bars
+- Deleted and replaced files go to the Windows Recycle Bin, or the shared folder's #recycle on a
+  Synology, unless you choose your own recycle folder
+- Downloads that stop making progress are flagged (and can be replaced automatically)
+- Simple mode shows only what you need to get going; Advanced shows everything Radarr has
 
 **Finding and grabbing** (ported from Radarr's decision engine)
 - Radarr's release parser (title, year, edition, quality, proper/repack, group, languages),

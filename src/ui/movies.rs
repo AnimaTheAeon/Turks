@@ -1,4 +1,4 @@
-//! Movies: library views, the movie details ("Status") screen, interactive
+//! Movies: library views, the movie details screen, interactive
 //! search, bulk editing and manual import.
 
 use std::collections::HashSet;
@@ -245,7 +245,11 @@ impl App {
             if ui.button("RSS sync").clicked() {
                 self.core.run(Command::RssSync);
             }
-            if ui.button("Search all missing").clicked() {
+            if self.movies.filter == Filter::Upgrades {
+                if ui.button("Search all upgrades").on_hover_text("Search for a better release of every movie below its profile's cutoff").clicked() {
+                    self.core.run(Command::CutoffUnmetSearch);
+                }
+            } else if ui.button("Search all missing").clicked() {
                 self.core.run(Command::MissingSearch);
             }
             if w::pill(ui, if self.movies.select_mode { "Selecting…" } else { "Select" }, self.movies.select_mode).on_hover_text("Pick several movies to edit, search, rename or delete together").clicked() {
@@ -294,6 +298,14 @@ impl App {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(common::dim_text(&format!("{} of {total}", list.len())));
+                // Colour key for the bar under each poster.
+                ui.add_space(8.0);
+                for st in MovieState::ALL.iter().rev() {
+                    ui.label(RichText::new(st.key_label()).color(TEXT_DIM()).size(11.5));
+                    let (r, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r.shrink(1.0), egui::CornerRadius::same(2), st.color());
+                    ui.add_space(4.0);
+                }
             });
         });
         ff::divider(ui);
@@ -515,24 +527,13 @@ impl App {
             if ui.button("‹ Movies").clicked() {
                 back = true;
             }
-            ff::title(ui, "Status", 24.0, TEXT());
             ui.add_space(10.0);
-            if ui.button(RichText::new("Search").color(GOOD()).strong()).on_hover_text("Automatic search: grab the best release").clicked() {
+            if ui.button(RichText::new("Search").color(GOOD()).strong()).on_hover_text("Find the best release and grab it").clicked() {
                 self.core.run(Command::SearchMovies(vec![movie.id]));
             }
-            if ui.button("Interactive search").clicked() {
+            if ui.button("Pick release").on_hover_text("Search every indexer and choose a release yourself").clicked() {
                 st.tab = Tab::Search;
                 self.core.run(Command::InteractiveSearch(movie.id));
-            }
-            if ui.button("Refresh & scan").clicked() {
-                self.core.run(Command::RefreshMovies(vec![movie.id]));
-            }
-            if ui.button("Rename").clicked() {
-                let preview = crate::library::rename_preview(&self.core, &[movie.id]);
-                self.dialog = Some(Dialog::Rename { ids: vec![movie.id], preview });
-            }
-            if ui.button("Manual import").clicked() {
-                self.dialog = Some(Dialog::ManualImport(ManualImport { folder: String::new(), movie_hint: Some(movie.id), rows: vec![], mode: 0, scanning: None, movie_search: vec![] }));
             }
             if ui.button("Edit").clicked() {
                 self.dialog = Some(Dialog::EditMovies(EditMovies {
@@ -547,12 +548,30 @@ impl App {
                     new_tag: String::new(),
                 }));
             }
-            if !movie.path.is_empty() && ui.button("Open folder").clicked() {
-                super::open_path(&movie.path);
-            }
-            if ui.button(RichText::new("Delete").color(BAD())).clicked() {
-                self.dialog = Some(Dialog::DeleteMovies { ids: vec![movie.id], delete_files: false, exclusion: false });
-            }
+            ui.menu_button("More ▾", |ui| {
+                if ui.button("Refresh & scan").on_hover_text("Update info from TMDb and rescan the folder").clicked() {
+                    self.core.run(Command::RefreshMovies(vec![movie.id]));
+                    ui.close();
+                }
+                if ui.button("Rename files").clicked() {
+                    let preview = crate::library::rename_preview(&self.core, &[movie.id]);
+                    self.dialog = Some(Dialog::Rename { ids: vec![movie.id], preview });
+                    ui.close();
+                }
+                if ui.button("Manual import").clicked() {
+                    self.dialog = Some(Dialog::ManualImport(ManualImport { folder: String::new(), movie_hint: Some(movie.id), rows: vec![], mode: 0, scanning: None, movie_search: vec![] }));
+                    ui.close();
+                }
+                if !movie.path.is_empty() && ui.button("Open folder").clicked() {
+                    super::open_path(&movie.path);
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button(RichText::new("Delete").color(BAD())).clicked() {
+                    self.dialog = Some(Dialog::DeleteMovies { ids: vec![movie.id], delete_files: false, exclusion: false });
+                    ui.close();
+                }
+            });
         });
         ff::divider(ui);
 
@@ -574,7 +593,19 @@ impl App {
                     line.push(movie.certification.clone());
                 }
                 line.push(movie.genres.join(", "));
-                ui.label(RichText::new(line.join(" · ")).color(TEXT_DIM()));
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(line.join(" · ")).color(TEXT_DIM()));
+                    ui.hyperlink_to("TMDb", format!("https://www.themoviedb.org/movie/{}", movie.tmdb_id));
+                    if !movie.imdb_id.is_empty() {
+                        ui.hyperlink_to("IMDb", format!("https://www.imdb.com/title/{}", movie.imdb_id));
+                    }
+                    if !movie.youtube_trailer.is_empty() {
+                        ui.hyperlink_to("Trailer", format!("https://www.youtube.com/watch?v={}", movie.youtube_trailer));
+                    }
+                    if !movie.website.is_empty() {
+                        ui.hyperlink_to("Website", &movie.website);
+                    }
+                });
                 ui.horizontal(|ui| {
                     ff::tag(ui, state.label(), state.color());
                     let mut mon = movie.monitored;
@@ -616,26 +647,14 @@ impl App {
                         self.core.save(Movie { tags, ..movie.clone() });
                     }
                 });
-                ui.horizontal(|ui| {
-                    ui.hyperlink_to("TMDb", format!("https://www.themoviedb.org/movie/{}", movie.tmdb_id));
-                    if !movie.imdb_id.is_empty() {
-                        ui.hyperlink_to("IMDb", format!("https://www.imdb.com/title/{}", movie.imdb_id));
-                    }
-                    if !movie.youtube_trailer.is_empty() {
-                        ui.hyperlink_to("Trailer", format!("https://www.youtube.com/watch?v={}", movie.youtube_trailer));
-                    }
-                    if !movie.website.is_empty() {
-                        ui.hyperlink_to("Website", &movie.website);
-                    }
-                });
             });
-            // Materia: custom formats on the current file.
+            // Custom formats on the current file.
             ui.vertical(|ui| {
                 ui.set_width(270.0);
                 ff::window(ui, |ui| {
                     ui.set_width(238.0);
-                    ff::title(ui, "Materia", 18.0, TEXT());
-                    ui.label(RichText::new("custom formats on this file").color(TEXT_DIM()).size(12.0));
+                    ff::title(ui, "Custom formats", 18.0, TEXT());
+                    ui.label(RichText::new("matched on this file, with their scores").color(TEXT_DIM()).size(12.0));
                     ui.add_space(4.0);
                     match (&file, &profile) {
                         (Some(f), Some(p)) => {
@@ -676,7 +695,7 @@ impl App {
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            for (t, label) in [(Tab::Overview, "File"), (Tab::Files, "Files on disk"), (Tab::History, "History"), (Tab::Search, "Interactive search"), (Tab::Cast, "Cast & crew")] {
+            for (t, label) in [(Tab::Overview, "File"), (Tab::Files, "Files on disk"), (Tab::History, "History"), (Tab::Search, "Releases"), (Tab::Cast, "Cast & crew")] {
                 if w::pill(ui, label, st.tab == t).clicked() {
                     st.tab = t;
                     if t == Tab::Search && !self.core.status().interactive.contains_key(&movie.id) {
@@ -741,7 +760,7 @@ impl App {
             if ui.button(RichText::new("Delete file").color(BAD())).clicked() {
                 self.dialog = Some(Dialog::Confirm {
                     title: "Delete file".into(),
-                    text: format!("Delete {}? It goes to the recycle bin if one is set.", f.relative_path),
+                    text: format!("Delete {}? It goes to the recycle bin.", f.relative_path),
                     action: common::Confirm::DeleteFile(f.id),
                 });
             }

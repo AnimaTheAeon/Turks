@@ -1000,6 +1000,8 @@ pub struct Download {
     pub added: Option<DateTime<Utc>>,
     pub from_interactive: bool,
     pub seen_in_client: bool,
+    /// When the remaining size last went down (stalled-download check).
+    pub last_progress: Option<DateTime<Utc>>,
 }
 
 /// A release waiting out a delay profile.

@@ -13,13 +13,13 @@ const SECTIONS: &[(&str, bool)] = &[
     ("Media Management", false),
     ("Profiles", false),
     ("Quality", true),
-    ("Custom Formats", false),
+    ("Custom Formats", true),
     ("Indexers", false),
     ("Download Clients", false),
-    ("Import Lists", false),
+    ("Import Lists", true),
     ("Connect", false),
-    ("Metadata", false),
-    ("Tags", false),
+    ("Metadata", true),
+    ("Tags", true),
     ("General", false),
     ("UI", false),
 ];
@@ -199,8 +199,19 @@ impl App {
             }
         });
 
-        w::section_help(ui, "Movie naming", "How Turks names folders and files when it imports. Uses Radarr's tokens.");
         let c = &mut self.cfg;
+        if !adv {
+            // Simple mode: just the three choices that matter day to day.
+            w::section_help(ui, "Files", "");
+            ch |= toggle_row(ui, "Rename movies", "Give imported files tidy names like 'Movie (2010) Bluray-1080p'. Off keeps the downloaded file name.", &mut c.rename_movies);
+            ch |= toggle_row(ui, "Use hardlinks instead of copy", "For torrents on the same drive: the movie appears in your library without using extra space, and keeps seeding.", &mut c.use_hardlinks);
+            ch |= w::row(ui, "Recycle bin", "Where deleted and replaced files go. Leave empty to use the Windows Recycle Bin (files on a network drive, which has none, are deleted for good).", |ui| w::folder_field(ui, &mut c.recycle_bin, 220.0));
+            if ch {
+                self.changed();
+            }
+            return;
+        }
+        w::section_help(ui, "Movie naming", "How Turks names folders and files when it imports. Uses Radarr's tokens.");
         ch |= toggle_row(ui, "Rename movies", "Rename imported files using the format below. Off keeps the downloaded file name.", &mut c.rename_movies);
         ch |= toggle_row(ui, "Replace illegal characters", "Swap characters Windows can't use (like ? and *) for safe ones instead of dropping them.", &mut c.replace_illegal_chars);
         ch |= w::row(ui, "Colon replacement", "What a ':' in a title becomes. Smart turns 'Title: Sub' into 'Title - Sub'.", |ui| {
@@ -245,7 +256,7 @@ impl App {
             });
             changed
         });
-        ch |= w::row(ui, "Recycle bin", "Deleted and upgraded files go here instead of being deleted. Leave empty to delete for good.", |ui| w::folder_field(ui, &mut c.recycle_bin, 220.0));
+        ch |= w::row(ui, "Recycle bin", "Where deleted and replaced files go. Leave empty to use the Windows Recycle Bin (files on a network drive, which has none, are deleted for good).", |ui| w::folder_field(ui, &mut c.recycle_bin, 220.0));
         ch |= num_row(ui, "Recycle bin cleanup", "Delete files from the recycle bin after this many days (0 = never).", &mut c.recycle_bin_cleanup_days, 0..=365, " days");
         if adv {
             ch |= toggle_row(ui, "Create empty movie folders", "Make a folder for each movie as soon as it's added.", &mut c.create_empty_folders);
@@ -320,6 +331,9 @@ impl App {
             self.dialog = Some(Dialog::Settings(Editor::Profile { item: p }));
         }
 
+        if !self.cfg.advanced_mode {
+            return;
+        }
         w::section_help(ui, "Delay profiles", "Wait a while before grabbing, so a better release (or your preferred protocol) has time to show up.");
         let mut open = None;
         let mut delete = None;
@@ -512,6 +526,9 @@ impl App {
             self.dialog = Some(Dialog::Settings(Editor::Indexer { item: ix, test: None, result: None, new_tag: String::new(), cats }));
         }
 
+        if !self.cfg.advanced_mode {
+            return;
+        }
         w::section_help(ui, "Options", "Apply to every indexer.");
         let c = &mut self.cfg;
         let mut ch = false;
@@ -572,11 +589,16 @@ impl App {
         if c.redownload_failed {
             ch |= toggle_row(ui, "…from interactive search too", "Also replace failed releases you picked by hand.", &mut c.redownload_failed_from_interactive);
         }
+        ch |= toggle_row(ui, "Replace stalled downloads", "When a download makes no progress for a long time (no seeders), blocklist it and search for another release. Off just flags it in Activity.", &mut self.cfg.replace_stalled);
         if self.cfg.advanced_mode {
+            ch |= num_row(ui, "Stalled after", "Hours without progress before a download counts as stalled (0 = never).", &mut self.cfg.stalled_hours, 0..=168, " h");
             ch |= num_row(ui, "Check every", "How often to ask download clients for progress.", &mut self.cfg.check_downloads_seconds, 15..=600, " s");
         }
         if ch {
             self.changed();
+        }
+        if !self.cfg.advanced_mode {
+            return;
         }
         w::section_help(ui, "Remote path mappings", "If a download client runs on another computer (or in Docker), tell Turks how its paths look from here. Example: host 'nas', remote '/downloads/', local '\\\\nas\\downloads\\'.");
         let mut open = None;
@@ -642,7 +664,7 @@ impl App {
         });
         let c = &mut self.cfg;
         let mut ch = false;
-        ch |= num_row(ui, "Sync every", "How often lists are checked.", &mut c.list_sync_interval_hours, 6..=168, " h");
+        ch |= num_row(ui, "Sync every", "", &mut c.list_sync_interval_hours, 6..=168, " h");
         ch |= w::row(ui, "Clean library", "What to do with movies that are no longer on any list. Careful: removing can delete files.", |ui| {
             let mut changed = false;
             let opts = [("Disabled", "Do nothing"), ("LogOnly", "Just log it"), ("KeepAndUnmonitor", "Keep and unmonitor"), ("RemoveAndKeep", "Remove, keep files"), ("RemoveAndDelete", "Remove and delete files")];
@@ -718,10 +740,10 @@ impl App {
         w::section_help(ui, "Kodi / Emby / Jellyfin metadata", "Write movie.nfo files and artwork next to your movies so media servers pick up the same info.");
         let c = &mut self.cfg;
         let mut ch = false;
-        ch |= toggle_row(ui, "Write metadata", "Create an .nfo for each movie when it's imported or refreshed.", &mut c.kodi_metadata);
+        ch |= toggle_row(ui, "Write metadata", "", &mut c.kodi_metadata);
         if c.kodi_metadata {
-            ch |= toggle_row(ui, "Movie images", "Save poster.jpg and fanart.jpg in the movie folder.", &mut c.kodi_movie_images);
-            ch |= toggle_row(ui, "Collection name", "Include the TMDb collection as the movie's set.", &mut c.kodi_collection_name);
+            ch |= toggle_row(ui, "Movie images", "", &mut c.kodi_movie_images);
+            ch |= toggle_row(ui, "Collection name", "", &mut c.kodi_collection_name);
             ch |= toggle_row(ui, "TMDb URL in .nfo", "Add the TMDb link at the end (helps Kodi's scraper).", &mut c.kodi_url_in_nfo);
         }
         if ch {
@@ -788,15 +810,17 @@ impl App {
         });
         common::result_line(ui, &self.settings.tmdb_result);
         let c = &mut self.cfg;
-        ch |= text_row(ui, "Metadata language", "Language for titles and overviews (e.g. en, de, fr, pt-BR).", &mut c.metadata_language);
-        ch |= text_row(ui, "Certification country", "Country for age ratings and release dates (e.g. US, GB, DE).", &mut c.certification_country);
+        if adv {
+            ch |= text_row(ui, "Metadata language", "Language for titles and overviews (e.g. en, de, fr, pt-BR).", &mut c.metadata_language);
+            ch |= text_row(ui, "Certification country", "Country for age ratings and release dates (e.g. US, GB, DE).", &mut c.certification_country);
+        }
 
         w::section_help(ui, "API", "Lets Prowlarr, Overseerr/Jellyseerr and other apps talk to Turks the way they'd talk to Radarr.");
         ch |= toggle_row(ui, "Enable API", "Changes take effect after a restart.", &mut c.api_enabled);
         ch |= num_row(ui, "Port", "7878 is Radarr's port; change it if Radarr is also running.", &mut c.api_port, 1024..=65535, "");
         ch |= toggle_row(ui, "Allow other computers", "Listen on the network, not just this PC. Only turn on if apps on other machines need it.", &mut c.api_bind_all);
         let mut regen = false;
-        w::row(ui, "API key", "Apps need this key to connect.", |ui| {
+        w::row(ui, "API key", "", |ui| {
             ui.add(egui::TextEdit::singleline(&mut c.api_key.clone()).desired_width(250.0));
             if ui.small_button("Copy").clicked() {
                 let _ = arboard::Clipboard::new().and_then(|mut cb| cb.set_text(c.api_key.clone()));
@@ -809,19 +833,27 @@ impl App {
             c.api_key = crate::config::random_key();
             ch = true;
         }
+        let mut new_cal = false;
+        w::row(ui, "Calendar link", "The Calendar page's 'Copy iCal link' uses its own read-only key, so the link can't change anything. A new link stops the old one working.", |ui| {
+            new_cal = ui.button("New link").clicked();
+        });
+        if new_cal {
+            c.calendar_key = crate::config::random_key();
+            ch = true;
+        }
         if adv {
             ch |= text_row(ui, "URL base", "For reverse proxies, e.g. /turks", &mut c.url_base);
+
+            w::section_help(ui, "Backups", "Turks backs up its settings and database on a schedule.");
+            ch |= w::row(ui, "Backup folder", "", |ui| w::folder_field(ui, &mut c.backup_dir, 220.0));
+            ch |= num_row(ui, "Interval", "", &mut c.backup_interval_days, 1..=7, " days");
+            ch |= num_row(ui, "Retention", "", &mut c.backup_retention_days, 1..=90, " days");
         }
 
-        w::section_help(ui, "Backups", "Turks backs up its settings and database on a schedule.");
-        ch |= w::row(ui, "Backup folder", "Where backups are saved.", |ui| w::folder_field(ui, &mut c.backup_dir, 220.0));
-        ch |= num_row(ui, "Interval", "Days between automatic backups.", &mut c.backup_interval_days, 1..=7, " days");
-        ch |= num_row(ui, "Retention", "Automatic backups older than this are deleted.", &mut c.backup_retention_days, 1..=90, " days");
-
         w::section_help(ui, "App", "");
-        ch |= toggle_row(ui, "Start with Windows", "Start in the tray when you sign in.", &mut c.start_with_windows);
+        ch |= toggle_row(ui, "Start with Windows", "", &mut c.start_with_windows);
         ch |= toggle_row(ui, "Close to tray", "The close button hides Turks in the tray so it keeps working.", &mut c.close_to_tray);
-        ch |= toggle_row(ui, "Check for updates", "Look for a new version on GitHub when Turks starts.", &mut c.check_updates);
+        ch |= toggle_row(ui, "Check for updates", "", &mut c.check_updates);
         if adv {
             ch |= w::row(ui, "ffprobe path", "Optional. ffprobe.exe reads real codec/HDR/audio info. Leave empty to look next to turks.exe and on PATH.", |ui| {
                 let mut changed = false;
@@ -857,6 +889,14 @@ impl App {
             });
             changed
         });
+        if !c.advanced_mode {
+            w::section_help(ui, "Movies", "");
+            ch |= w::row(ui, "Poster size", "", |ui| ui.add(egui::Slider::new(&mut c.poster_size, 100.0..=260.0).suffix(" px")).changed());
+            if ch {
+                self.changed();
+            }
+            return;
+        }
         w::section_help(ui, "Calendar and dates", "");
         ch |= w::row(ui, "First day of week", "", |ui| {
             let mut changed = false;
@@ -881,8 +921,8 @@ impl App {
             changed
         });
         ch |= toggle_row(ui, "24-hour time", "", &mut c.time_24h);
-        ch |= toggle_row(ui, "Relative dates", "Show '3 h ago' instead of a date for recent things.", &mut c.show_relative_dates);
-        ch |= toggle_row(ui, "Runtime as hours and minutes", "2h 16m instead of 136 min.", &mut c.runtime_hours_minutes);
+        ch |= toggle_row(ui, "Relative dates", "", &mut c.show_relative_dates);
+        ch |= toggle_row(ui, "Runtime as hours and minutes", "", &mut c.runtime_hours_minutes);
         w::section_help(ui, "Movies", "");
         ch |= w::row(ui, "Poster size", "Width of posters in the Movies grid.", |ui| ui.add(egui::Slider::new(&mut c.poster_size, 100.0..=260.0).suffix(" px")).changed());
         if ch {
@@ -927,7 +967,7 @@ impl App {
                     toggle_row(ui, "Interactive search", "Use it when you search by hand.", &mut item.enable_interactive_search);
                     num_row(ui, "Priority", "1 is highest. Used to break ties between equal releases.", &mut item.priority, 1..=50, "");
                     if item.kind == IndexerKind::Torznab {
-                        num_row(ui, "Minimum seeders", "Skip torrents with fewer seeders.", &mut item.minimum_seeders, 0..=1000, "");
+                        num_row(ui, "Minimum seeders", "", &mut item.minimum_seeders, 0..=1000, "");
                         let mut ratio = item.seed_ratio.unwrap_or(0.0);
                         if num_row(ui, "Seed ratio", "Sent to the download client. 0 = use the client's setting.", &mut ratio, 0.0..=100.0, "") {
                             item.seed_ratio = (ratio > 0.0).then_some(ratio);
@@ -975,7 +1015,7 @@ impl App {
                         toggle_row(ui, "Use SSL", "", &mut item.use_ssl);
                         text_row(ui, "URL base", "Only if the client's web UI isn't at the root, e.g. /transmission", &mut item.url_base);
                         if matches!(item.kind, ClientKind::Sabnzbd) {
-                            secret_row(ui, "API key", "SABnzbd › Config › General.", &mut item.api_key);
+                            secret_row(ui, "API key", "", &mut item.api_key);
                         } else {
                             if item.kind != ClientKind::Deluge {
                                 text_row(ui, "Username", "", &mut item.username);
@@ -995,7 +1035,7 @@ impl App {
                     }
                     num_row(ui, "Priority", "1 is used first when several clients of the same type are set up.", &mut item.priority, 1..=50, "");
                     toggle_row(ui, "Remove completed", "Remove downloads from the client once imported (torrents: after seeding goals are met).", &mut item.remove_completed);
-                    toggle_row(ui, "Remove failed", "Remove failed downloads from the client.", &mut item.remove_failed);
+                    toggle_row(ui, "Remove failed", "", &mut item.remove_failed);
                     w::row(ui, "Tags", "Only used for movies with one of these tags.", |_| {});
                     common::tags_editor(ui, "cl-tags", &self.core, &mut item.tags, new_tag);
                     if ui.add_enabled(test.is_none(), egui::Button::new(if test.is_some() { "Testing…" } else { "Test" })).clicked() {
@@ -1065,7 +1105,7 @@ impl App {
                         NotifyKind::Emby { host, port, api_key, use_ssl, .. } => {
                             text_row(ui, "Host", "", host);
                             num_row(ui, "Port", "", port, 1..=65535, "");
-                            secret_row(ui, "API key", "Dashboard › API Keys.", api_key);
+                            secret_row(ui, "API key", "", api_key);
                             toggle_row(ui, "Use SSL", "", use_ssl);
                         }
                         NotifyKind::Kodi { host, port, username, password } => {
@@ -1139,7 +1179,7 @@ impl App {
                     common::heading(ui, item.kind.label());
                     text_row(ui, "Name", "", &mut item.name);
                     toggle_row(ui, "Enabled", "", &mut item.enabled);
-                    toggle_row(ui, "Add automatically", "Add movies from this list without asking.", &mut item.auto_add);
+                    toggle_row(ui, "Add automatically", "", &mut item.auto_add);
                     match &mut item.kind {
                         ListKind::TmdbList { list_id } => {
                             text_row(ui, "List id", "The number in the list's TMDb URL.", list_id);
@@ -1457,7 +1497,7 @@ impl App {
                 common::modal(ctx, "ed-prowlarr", 560.0, |ui| {
                     common::heading(ui, "Import from Prowlarr");
                     text_row(ui, "Prowlarr URL", "", url);
-                    secret_row(ui, "API key", "Prowlarr › Settings › General.", key);
+                    secret_row(ui, "API key", "", key);
                     if ui.add_enabled(task.is_none(), egui::Button::new(if task.is_some() { "Loading…" } else { "Load indexers" })).clicked() {
                         let (u, k) = (url.clone(), key.clone());
                         *task = Some(common::spawn(ctx, move || crate::indexers::from_prowlarr(&u, &k)));

@@ -79,17 +79,32 @@ impl App {
         self.dialog = Some(Dialog::AddMovie(AddDialog { hit, opts: self.default_add_options(), new_tag: String::new(), adding: None, error: None }));
     }
 
+    /// The four ways to add movies, shown at the top of each of them.
+    fn add_tabs(&mut self, ui: &mut Ui) {
+        ff::title(ui, "Add Movie", 26.0, TEXT());
+        ui.add_space(10.0);
+        let here = match (self.page, self.add.tab) {
+            (super::Page::Discover, _) => 1,
+            (super::Page::Collections, _) => 2,
+            (_, 1) => 3,
+            _ => 0,
+        };
+        for (i, label) in ["Search", "Discover", "Collections", "Import library"].into_iter().enumerate() {
+            if w::pill(ui, label, here == i).clicked() {
+                match i {
+                    1 => self.page = super::Page::Discover,
+                    2 => self.page = super::Page::Collections,
+                    _ => {
+                        self.page = super::Page::Add;
+                        self.add.tab = if i == 3 { 1 } else { 0 };
+                    }
+                }
+            }
+        }
+    }
+
     pub fn page_add(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            ff::title(ui, "Add Movie", 26.0, TEXT());
-            ui.add_space(10.0);
-            if w::pill(ui, "Search", self.add.tab == 0).clicked() {
-                self.add.tab = 0;
-            }
-            if w::pill(ui, "Import existing library", self.add.tab == 1).clicked() {
-                self.add.tab = 1;
-            }
-        });
+        ui.horizontal(|ui| self.add_tabs(ui));
         ff::divider(ui);
         if !self.cfg.tmdb_ready() {
             ui.label(RichText::new("Add a TMDb API key in Settings › General first. Turks uses it to look up movies.").color(WARN()));
@@ -383,9 +398,8 @@ impl App {
             ("recommended", "Recommended for you"),
         ];
         let mut load = None;
+        ui.horizontal(|ui| self.add_tabs(ui));
         ui.horizontal_wrapped(|ui| {
-            ff::title(ui, "Discover", 26.0, TEXT());
-            ui.add_space(10.0);
             for (k, l) in sources {
                 if w::pill(ui, l, self.discover.source == k).clicked() {
                     load = Some(k.to_string());
@@ -482,9 +496,8 @@ impl App {
 
     pub fn page_collections(&mut self, ui: &mut Ui) {
         let lib = self.core.lib().clone();
+        ui.horizontal(|ui| self.add_tabs(ui));
         ui.horizontal(|ui| {
-            ff::title(ui, "Collections", 26.0, TEXT());
-            ui.add_space(10.0);
             ui.add(egui::TextEdit::singleline(&mut self.collections.search).hint_text("Find a collection").desired_width(200.0));
             if ui.button("Refresh collections").on_hover_text("Find collections your movies belong to, and add missing movies from monitored ones").clicked() {
                 self.core.run(crate::core::Command::RefreshCollections);
