@@ -112,8 +112,43 @@ pub fn input_for_file(file: &MovieFile, movie: &Movie) -> FormatInput {
     }
 }
 
+static FORMATS_REV: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Call when a custom format is added, changed or removed, so remembered
+/// matches are worked out again.
+pub fn formats_changed() {
+    FORMATS_REV.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+type FormatMemo = std::collections::HashMap<Id, (u64, u64, Vec<(Id, String)>)>;
+
+/// The custom formats a file matches. The answer is remembered per file and
+/// only worked out again when the file, its movie or the formats change, so
+/// lists of thousands of movies don't re-run every pattern on every refresh.
 pub fn file_formats(lib: &Library, file: &MovieFile, movie: &Movie) -> Vec<(Id, String)> {
-    formats::matching(lib.formats.values(), &input_for_file(file, movie))
+    use std::hash::{Hash, Hasher};
+    static MEMO: std::sync::LazyLock<std::sync::Mutex<FormatMemo>> = std::sync::LazyLock::new(Default::default);
+    let input = input_for_file(file, movie);
+    if file.id == 0 {
+        // Not a saved file (an import being weighed up).
+        return formats::matching(lib.formats.values(), &input);
+    }
+    let rev = FORMATS_REV.load(std::sync::atomic::Ordering::SeqCst);
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    format!("{input:?}").hash(&mut h);
+    let print = h.finish();
+    if let Some((r, p, hit)) = MEMO.lock().unwrap_or_else(|e| e.into_inner()).get(&file.id) {
+        if *r == rev && *p == print {
+            return hit.clone();
+        }
+    }
+    let out = formats::matching(lib.formats.values(), &input);
+    let mut memo = MEMO.lock().unwrap_or_else(|e| e.into_inner());
+    if memo.len() > 50_000 {
+        memo.clear();
+    }
+    memo.insert(file.id, (rev, print, out.clone()));
+    out
 }
 
 /// Builds a scored candidate for a release (no rejections yet).
@@ -638,5 +673,60 @@ mod tests {
         // HD-1080p cutoff is Bluray-1080p, so Remux isn't an upgrade from Bluray.
         let remux = QualityModel { quality: id::REMUX1080P, revision: Revision::new() };
         assert!(!cutoff_not_met(&p, &better, &[], Some(&remux)));
+    }
+}
+
+#[cfg(test)]
+mod memo_tests {
+    use super::*;
+
+    fn format(id: Id, name: &str, pattern: &str) -> CustomFormat {
+        CustomFormat {
+            id,
+            name: name.into(),
+            include_when_renaming: false,
+            specs: vec![CfSpec { name: name.into(), kind: CfKind::ReleaseTitle { pattern: pattern.into() }, negate: false, required: false }],
+        }
+    }
+
+    #[test]
+    fn remembered_matches_follow_changes() {
+        let mut lib = Library::default();
+        lib.formats.insert(1, format(1, "x265", r"\b(x265|hevc)\b"));
+        let movie = Movie::default();
+        let mut file = MovieFile { id: 900_001, scene_name: "Movie.2010.1080p.BluRay.x265-GRP".into(), ..Default::default() };
+        let names = |lib: &Library, f: &MovieFile| file_formats(lib, f, &movie).into_iter().map(|x| x.1).collect::<Vec<_>>();
+        assert_eq!(names(&lib, &file), ["x265"]);
+        assert_eq!(names(&lib, &file), ["x265"]); // remembered
+
+        // A changed format is noticed…
+        lib.formats.insert(2, format(2, "BluRay", r"\bbluray\b"));
+        formats_changed();
+        assert_eq!(names(&lib, &file), ["x265", "BluRay"]);
+
+        // …and so is a changed file.
+        file.scene_name = "Movie.2010.1080p.WEB-DL.x264-GRP".into();
+        assert!(names(&lib, &file).is_empty());
+    }
+
+    /// 2,000 files against 60 formats, the way the movie list asks.
+    #[test]
+    fn big_library_is_quick() {
+        let mut lib = Library::default();
+        for i in 1..=60 {
+            lib.formats.insert(i, format(i, &format!("f{i}"), &format!(r"\b(group{i}|tag{i}|(?<!not)word{i})\b")));
+        }
+        let movie = Movie::default();
+        let files: Vec<MovieFile> = (0..2000).map(|i| MovieFile { id: 1_000_000 + i, scene_name: format!("Movie.{i}.2010.1080p.BluRay.x264-group{}", i % 70), ..Default::default() }).collect();
+        let pass = |lib: &Library| {
+            let t = std::time::Instant::now();
+            let hits: usize = files.iter().map(|f| file_formats(lib, f, &movie).len()).sum();
+            (t.elapsed(), hits)
+        };
+        let (first, hits) = pass(&lib);
+        let (second, hits2) = pass(&lib);
+        println!("first pass {first:?}, repeat pass {second:?}");
+        assert_eq!(hits, hits2);
+        assert!(second < std::time::Duration::from_millis(250), "repeat pass took {second:?}");
     }
 }
