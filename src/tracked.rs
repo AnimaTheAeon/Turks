@@ -32,9 +32,9 @@ pub fn refresh(core: &Core, _cid: u64) -> Result<String, String> {
             let item = items.iter().find(|i| i.id.eq_ignore_ascii_case(&d.download_id));
             let Some(item) = item else {
                 if d.seen_in_client {
-                    d.state = DownloadState::Failed;
-                    d.messages = vec!["Removed from the download client before it was imported".into()];
-                    core.save(d);
+                    // You removed it in the client: treat it as cancelled, not failed.
+                    crate::applog::info(format!("{} was removed from {}; dropped from the queue", d.title, client.name));
+                    core.remove::<Download>(d.id);
                 } else if d.added.map(|a| Utc::now() - a > chrono::Duration::minutes(15)).unwrap_or(false) {
                     d.state = DownloadState::Warning;
                     d.messages = vec!["The download client doesn't list this download".into()];
@@ -44,6 +44,9 @@ pub fn refresh(core: &Core, _cid: u64) -> Result<String, String> {
             };
             d.seen_in_client = true;
             d.size = if item.size > 0 { item.size } else { d.size };
+            if d.last_progress.is_none() || item.remaining < d.remaining {
+                d.last_progress = Some(Utc::now());
+            }
             d.remaining = item.remaining;
             d.eta_secs = item.eta_secs;
             d.output_path = clients::map_remote_path(&maps, &client.host, &item.output_path);
@@ -68,6 +71,19 @@ pub fn refresh(core: &Core, _cid: u64) -> Result<String, String> {
             }
             if item.status != ItemStatus::Warning && item.status != ItemStatus::Completed {
                 d.messages.clear();
+            }
+            // Stalled: downloading, but nothing has arrived for a long time.
+            if item.status == ItemStatus::Downloading && cfg.stalled_hours > 0 {
+                let idle = d.last_progress.map(|t| Utc::now() - t).unwrap_or_default();
+                if idle > chrono::Duration::hours(cfg.stalled_hours as i64) {
+                    let reason = format!("No progress for {} hours (no seeders?)", idle.num_hours());
+                    if cfg.replace_stalled {
+                        fail(core, &mut d, &client, &reason, &cfg);
+                        continue;
+                    }
+                    d.state = DownloadState::Warning;
+                    d.messages = vec![reason];
+                }
             }
             let completed = item.status == ItemStatus::Completed;
             let d = core.save(d);

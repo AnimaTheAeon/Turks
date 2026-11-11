@@ -116,49 +116,21 @@ async function activityBlocklist(body, tools) {
     }))));
 }
 
-// ---------------------------------------------------------------- wanted
-
-Turks.pages.wanted = {
-  async render(main, arg) {
-    const tab = arg || "missing";
-    const [movies, cutoffIds] = await Promise.all([api("movies"), tab === "cutoff" ? api("wanted/cutoff") : []]);
-    const list = (tab === "missing" ? movies.filter((m) => m.monitored && !m.file) : movies.filter((m) => cutoffIds.includes(m.id)))
-      .sort((a, b) => (releaseDate(b) || "").localeCompare(releaseDate(a) || ""));
-    const sel = new Set();
-    const body = el("div.scroll");
-    const searchSel = el("button", { disabled: true, onclick: () => act("command", { name: "search", ids: [...sel] }, null, `Searching ${sel.size} movies…`) }, "Search selected");
-    main.append(el("div.page",
-      el("div.page-head", el("h1", "Wanted"), el("div.tabs", pill("Missing", tab === "missing", () => go("wanted", "missing")), pill("Cutoff unmet", tab === "cutoff", () => go("wanted", "cutoff"))), el("span.grow"),
-        searchSel,
-        el("button.primary", { onclick: () => act("command", { name: tab === "missing" ? "missing" : "cutoff" }, null, "Searching…") }, tab === "missing" ? "Search all missing" : "Search all cutoff unmet")),
-      el("p.sub", tab === "missing" ? "Monitored movies without a file." : "Movies whose file is below the profile's cutoff, so Turks keeps looking for an upgrade."),
-      el("div.divider"), body));
-    if (!list.length) { body.append(el("div.empty", el("h2", "All caught up"), tab === "missing" ? "Every monitored movie has a file." : "Every file meets its profile's cutoff.")); return; }
-    body.append(el("table",
-      el("thead", el("tr", el("th", check("", false, (v) => { $$("input.ws", body).forEach((b) => { b.checked = v; v ? sel.add(Number(b.value)) : sel.delete(Number(b.value)); }); searchSel.disabled = !sel.size; })),
-        el("th", "Movie"), el("th", "Year"), el("th", "Profile"), tab === "cutoff" ? el("th", "Has") : el("th", "Available"), el("th", "Release"), el("th"))),
-      el("tbody", list.map((m) => el("tr",
-        el("td", el("input.ws", { type: "checkbox", value: m.id, onchange: (e) => { e.target.checked ? sel.add(m.id) : sel.delete(m.id); searchSel.disabled = !sel.size; } })),
-        el("td", el("button.link", { onclick: () => go("movies", m.id) }, m.title)), el("td", m.year || ""), el("td", profileName(m.quality_profile_id)),
-        tab === "cutoff" ? el("td", m.file ? m.file.quality_name : "") : el("td", m.available ? el("span.good", "Yes") : el("span.dim", "Not yet")),
-        el("td.nowrap.dim", dateStr(releaseDate(m))),
-        el("td", el("button.small", { onclick: () => act("command", { name: "search", ids: [m.id] }, null, "Searching " + m.title + "…") }, "Search")))))));
-  },
-};
-
 // ---------------------------------------------------------------- calendar
 
 Turks.pages.calendar = {
   async render(main, arg) {
+    // arg: "YYYY-MM" (month view) or "YYYY-MM-DD" (the week holding that day)
+    const week = store.get("calWeek", false);
+    const showUnmon = store.get("calUnmonitored", false);
     const now = new Date();
-    const base = arg ? new Date(arg + "-01T00:00:00") : new Date(now.getFullYear(), now.getMonth(), 1);
-    const y = base.getFullYear(), mo = base.getMonth();
-    const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const movies = await api("movies");
-    const firstDow = (Turks.cfg && Turks.cfg.first_day_of_week) || 0;
-    const start = new Date(y, mo, 1);
-    start.setDate(1 - ((start.getDay() - firstDow + 7) % 7));
     const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const anchor = arg ? new Date((arg.length === 7 ? arg + "-01" : arg) + "T00:00:00") : now;
+    const y = anchor.getFullYear(), mo = anchor.getMonth();
+    const movies = (await api("movies")).filter((m) => showUnmon || m.monitored);
+    const firstDow = (Turks.cfg && Turks.cfg.first_day_of_week) || 0;
+    const start = week ? new Date(y, mo, anchor.getDate()) : new Date(y, mo, 1);
+    start.setDate(start.getDate() - ((start.getDay() - firstDow + 7) % 7));
     const events = {};
     for (const m of movies) {
       for (const [k, cls, l] of [["in_cinemas", "cinema", "Cinemas"], ["digital_release", "digital", "Digital"], ["physical_release", "physical", "Disc"]]) {
@@ -168,21 +140,31 @@ Turks.pages.calendar = {
     const dows = Array.from({ length: 7 }, (_, i) => new Date(2023, 0, 1 + ((i + firstDow) % 7)).toLocaleDateString(undefined, { weekday: "short" }));
     const cells = [];
     const today = iso(now);
-    for (let i = 0; i < 42; i++) {
+    // Only as many week rows as the month needs.
+    let rows = 1;
+    if (!week) { rows = 4; for (let r = 4; r < 6; r++) { const d = new Date(start); d.setDate(start.getDate() + r * 7); if (d.getMonth() === mo) rows = r + 1; } }
+    for (let i = 0; i < rows * 7; i++) {
       const d = new Date(start); d.setDate(start.getDate() + i);
-      if (i === 35 && d.getMonth() !== mo) break;
       const ds = iso(d);
-      cells.push(el("div.day" + (d.getMonth() !== mo ? ".other" : "") + (ds === today ? ".today" : ""), el("div.n", d.getDate()),
+      cells.push(el("div.day" + (!week && d.getMonth() !== mo ? ".other" : "") + (ds === today ? ".today" : ""), el("div.n", week ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : d.getDate()),
         (events[ds] || []).map((e) => el("div.ev." + e.cls + (e.m.file ? ".has" : ""), { title: `${e.m.title} — ${e.l}${e.m.file ? " · downloaded" : ""}`, onclick: () => go("movies", e.m.id) }, e.m.title))));
     }
-    const prev = new Date(y, mo - 1, 1), next = new Date(y, mo + 1, 1);
-    const ical = Turks.state && Turks.state.api ? `http://${location.hostname}:${Turks.state.api.port}/feed/v3/calendar/turks.ics?apikey=${Turks.state.api.key}` : "";
+    const step = (dir) => { const d = week ? new Date(y, mo, anchor.getDate() + 7 * dir) : new Date(y, mo + dir, 1); return week ? iso(d) : iso(d).slice(0, 7); };
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    const title = week ? `${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+      : anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const api_ = Turks.state && Turks.state.api;
+    const ical = api_ && api_.enabled && api_.calendar_key ? `http://${location.hostname}:${api_.port}/feed/v3/calendar/turks.ics?key=${api_.calendar_key}` : "";
     main.append(el("div.page",
-      el("div.page-head", el("h1.keep", base.toLocaleDateString(undefined, { month: "long", year: "numeric" })), el("span.grow"),
+      el("div.page-head",
+        el("button", { onclick: () => go("calendar", step(-1)) }, "‹"), el("button", { onclick: () => go("calendar") }, "Today"), el("button", { onclick: () => go("calendar", step(1)) }, "›"),
+        el("h1.keep", title),
+        el("div.tabs", pill("Month", !week, () => { store.set("calWeek", false); go("calendar", iso(anchor).slice(0, 7)); }), pill("Week", week, () => { store.set("calWeek", true); go("calendar", iso(arg ? anchor : now)); })),
+        check("Unmonitored", showUnmon, (v) => { store.set("calUnmonitored", v); rerender(); }),
+        el("span.grow"),
         el("span.small", el("span.warn", "▌"), "Cinemas ", el("span.info", "▌"), "Digital ", el("span", { style: { color: "#c79cff" } }, "▌"), "Disc"),
-        el("button", { onclick: () => go("calendar", key(prev)) }, "‹"), el("button", { onclick: () => go("calendar") }, "Today"), el("button", { onclick: () => go("calendar", key(next)) }, "›"),
-        ical ? el("button", { onclick: () => { navigator.clipboard && navigator.clipboard.writeText(ical); openModal({ title: "Calendar feed", body: [el("p", "Subscribe to this address in Google Calendar, Outlook or your phone. 'Allow other computers' must be on in Settings › General."), el("input.command", { type: "text", readonly: true, value: ical })], size: "narrow" }); } }, "iCal") : null),
+        ical ? el("button", { title: "Subscribe to this in your phone or desktop calendar", onclick: () => { navigator.clipboard && navigator.clipboard.writeText(ical); openModal({ title: "Calendar link", body: [el("p", "Subscribe to this address in Google Calendar, Outlook or your phone. The link is read-only: it can't change anything in Turks. 'Allow other computers' must be on in Settings › General."), el("input.command", { type: "text", readonly: true, value: ical })], size: "narrow" }); } }, "Copy iCal link") : null),
       el("div.divider"),
-      el("div.scroll", el("div.cal", dows.map((d) => el("div.dow", d)), cells))));
+      el("div.cal" + (week ? ".week" : ""), { style: { "--rows": rows } }, dows.map((d) => el("div.dow", d)), cells)));
   },
 };

@@ -96,6 +96,19 @@ pub enum MovieState {
 }
 
 impl MovieState {
+    pub const ALL: [MovieState; 6] = [Self::Downloaded, Self::Downloading, Self::Missing, Self::CutoffUnmet, Self::NotAvailable, Self::Unmonitored];
+    /// Short name for the colour key.
+    pub fn key_label(self) -> &'static str {
+        match self {
+            Self::Downloaded => "Have",
+            Self::Downloading => "Downloading",
+            Self::Missing => "Missing",
+            Self::NotAvailable => "Not out yet",
+            Self::Unmonitored => "Unmonitored",
+            Self::CutoffUnmet => "Upgrade wanted",
+        }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Downloaded => "DOWNLOADED",
@@ -108,11 +121,14 @@ impl MovieState {
     }
     pub fn color(self) -> Color32 {
         match self {
+            // One colour per state, the same in both themes' families and in
+            // the Synology window: green have, red missing, yellow upgrade,
+            // blue downloading, violet not out yet, grey unmonitored.
             Self::Downloaded => GOOD(),
-            Self::Downloading => WARN(),
+            Self::Downloading => if ff::is_green() { Color32::from_rgb(96, 216, 255) } else { Color32::from_rgb(92, 172, 255) },
             Self::Missing => BAD(),
-            Self::NotAvailable => LABEL(),
-            Self::Unmonitored => Color32::from_rgb(150, 156, 180),
+            Self::NotAvailable => Color32::from_rgb(182, 152, 255),
+            Self::Unmonitored => if ff::is_green() { Color32::from_rgb(136, 152, 126) } else { Color32::from_rgb(150, 156, 180) },
             Self::CutoffUnmet => WARN(),
         }
     }
@@ -359,7 +375,7 @@ impl App {
                     ui.add_space(6.0);
                     ui.checkbox(delete_files, "Delete the movie folders and files too");
                     if *delete_files {
-                        ui.label(RichText::new("Files go to the recycle bin if one is set, otherwise they're deleted for good.").color(WARN()));
+                        ui.label(RichText::new("Files go to the recycle bin (yours, or Windows' own).").color(WARN()));
                     }
                     ui.checkbox(exclusion, "Add to the import list exclusions (so lists don't add it back)");
                     ui.add_space(8.0);

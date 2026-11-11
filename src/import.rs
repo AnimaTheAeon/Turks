@@ -155,13 +155,15 @@ fn copy_verified(src: &Path, dst: &Path) -> Result<(), String> {
     std::fs::rename(&tmp, dst).map_err(|e| e.to_string())
 }
 
-/// Moves a file to the recycle bin (or deletes it when none is set).
+/// Moves a file or folder to the recycle bin. With no recycle bin folder set,
+/// it goes to the system's own: the Windows Recycle Bin, or the shared
+/// folder's #recycle on a Synology. Only if neither exists is it deleted.
 pub fn recycle(path: &Path, cfg: &Config) -> Result<(), String> {
     if !path.exists() {
         return Ok(());
     }
     if cfg.recycle_bin.trim().is_empty() {
-        return if path.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) }.map_err(|e| e.to_string());
+        return system_recycle(path);
     }
     let bin = Path::new(cfg.recycle_bin.trim());
     let parent_name = path.parent().and_then(|p| p.file_name()).map(|n| n.to_os_string()).unwrap_or_default();
@@ -175,6 +177,56 @@ pub fn recycle(path: &Path, cfg: &Config) -> Result<(), String> {
     // Recycle bin cleanup goes by modification time.
     let _ = filetime_now(&dest);
     Ok(())
+}
+
+#[cfg(windows)]
+fn system_recycle(path: &Path) -> Result<(), String> {
+    match trash::delete(path) {
+        Ok(()) => Ok(()),
+        // Network drives have no Recycle Bin.
+        Err(e) => {
+            crate::applog::warn(format!("Couldn't use the Recycle Bin for {} ({e}); deleting it", path.display()));
+            delete_for_good(path)
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn system_recycle(path: &Path) -> Result<(), String> {
+    match share_recycle_dir(path) {
+        Some(bin) => {
+            // Keep the folder layout under #recycle, like File Station does.
+            let rel = path.strip_prefix(bin.parent().unwrap_or(Path::new("/"))).unwrap_or(path);
+            let mut dest = bin.join(rel);
+            if dest.exists() {
+                dest = PathBuf::from(format!("{}.{}", dest.display(), Utc::now().timestamp()));
+            }
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            transfer(path, &dest, Transfer::Move).map(|_| ())
+        }
+        None => delete_for_good(path),
+    }
+}
+
+/// The Synology shared folder's recycle bin (/volumeN/share/#recycle), when
+/// it's turned on for that share.
+#[cfg(not(windows))]
+pub fn share_recycle_dir(path: &Path) -> Option<PathBuf> {
+    let mut parts = path.components();
+    parts.next()?; // "/"
+    let volume = parts.next()?.as_os_str().to_str()?;
+    if !volume.starts_with("volume") {
+        return None;
+    }
+    let share = parts.next()?.as_os_str();
+    let bin = Path::new("/").join(volume).join(share).join("#recycle");
+    bin.is_dir().then_some(bin)
+}
+
+fn delete_for_good(path: &Path) -> Result<(), String> {
+    if path.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) }.map_err(|e| e.to_string())
 }
 
 fn filetime_now(p: &Path) -> std::io::Result<()> {

@@ -152,7 +152,11 @@ impl Core {
     pub fn open() -> Result<Core, String> {
         let db = Db::open(&crate::config::data_dir().join("turks.db"))?;
         let mut lib = db.load_library();
-        let cfg = Config::load();
+        let mut cfg = Config::load();
+        if cfg.calendar_key.is_empty() {
+            cfg.calendar_key = crate::config::random_key();
+            let _ = cfg.save();
+        }
         // First run: Radarr's defaults.
         if lib.profiles.is_empty() {
             let mut list = crate::quality::default_profiles();

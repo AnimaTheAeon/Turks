@@ -124,7 +124,9 @@ impl Library {
         self.sizes.get(&(quality as Id)).cloned().unwrap_or_else(|| QualitySize { quality, ..Default::default() })
     }
     pub fn missing_count(&self) -> usize {
-        self.movies.values().filter(|m| m.monitored && m.movie_file_id.is_none()).count()
+        // Movies already downloading aren't missing.
+        let downloading: std::collections::HashSet<Id> = self.active_downloads().map(|d| d.movie_id).collect();
+        self.movies.values().filter(|m| m.monitored && m.movie_file_id.is_none() && !downloading.contains(&m.id)).count()
     }
 }
 

@@ -52,9 +52,10 @@ const Turks = {
 };
 
 const MENU = [
-  ["movies", "Movies"], ["add", "Add Movie"], ["discover", "Discover"], ["collections", "Collections"],
-  ["calendar", "Calendar"], ["activity", "Activity"], ["wanted", "Wanted"], ["settings", "Settings"], ["system", "System"],
+  ["movies", "Movies"], ["add", "Add Movie"], ["calendar", "Calendar"], ["activity", "Activity"], ["settings", "Settings"], ["system", "System"],
 ];
+/** The menu entry a page belongs to: Discover and Collections are tabs of Add Movie. */
+const menuOf = (page) => (page === "discover" || page === "collections" ? "add" : page);
 
 // ---------------------------------------------------------------- API
 
@@ -211,7 +212,7 @@ function menuItem(label, selected, onclick, cls = "menu-item") {
 function renderMenu() {
   const nav = $("#menu");
   nav.classList.toggle("menu-used", Turks.menuUsed);
-  nav.replaceChildren(...MENU.map(([key, label]) => menuItem(label, Turks.page === key, () => { Turks.menuUsed = true; go(key); })));
+  nav.replaceChildren(...MENU.map(([key, label]) => menuItem(label, menuOf(Turks.page) === key, () => { Turks.menuUsed = true; go(key); })));
 }
 
 /** Switch page. `arg` is page-specific (e.g. a movie id). */
@@ -227,7 +228,7 @@ function go(page, arg) {
   if (isGreen()) {
     Turks.home = false;
     document.body.classList.remove("ghome-on");
-    setGreenTitle((MENU.find((m) => m[0] === page) || [, page])[1]);
+    setGreenTitle((MENU.find((m) => m[0] === menuOf(page)) || [, page])[1]);
     $("#gback-label").textContent = page === "movies" && arg ? "MOVIES" : "BACK";
     drawGrid();
   }
@@ -390,6 +391,14 @@ function select(options, value, onchange, cls) {
 function pill(label, on, onclick) { return el("button.pill" + (on ? ".on" : ""), { onclick }, label); }
 function hp(frac, full) { return el("span.hp" + (full ? ".full" : ""), el("i", { style: { width: Math.max(0, Math.min(1, frac)) * 100 + "%" } })); }
 
+/** A button that opens a small menu. items: [label, onclick, cssClass?] or null for a divider. */
+function menuButton(label, items) {
+  const list = el("div.menu.hidden", items.map((it) => (it ? el("button" + (it[2] ? "." + it[2] : ""), { onclick: () => { list.classList.add("hidden"); it[1](); } }, it[0]) : el("div.divider"))));
+  const btn = el("button", { onclick: (e) => { e.stopPropagation(); list.classList.toggle("hidden"); } }, label + " ▾");
+  document.addEventListener("click", () => list.classList.add("hidden"));
+  return el("span.menu-wrap", btn, list);
+}
+
 /** A settings row: name + help on the left, control on the right. */
 function field(name, help, control, stack) {
   return el("div.field" + (stack ? ".stack" : ""), el("div.lbl", el("div.name", name), help ? el("div.help", help) : null), el("div.ctl", control));
@@ -451,7 +460,7 @@ function goHome() {
   closeModal();
   clearInterval(Turks.pageTimer);
   Turks.home = true;
-  const i = MENU.findIndex((m) => m[0] === Turks.page);
+  const i = MENU.findIndex((m) => m[0] === menuOf(Turks.page));
   Turks.cursor = i < 0 ? 0 : i;
   document.body.classList.add("ghome-on");
   renderHome();
@@ -624,7 +633,7 @@ window.addEventListener("resize", () => { if (!isGreen()) return; if (Turks.home
 
 Turks.start = async function () {
   document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
-  $("#i-missing-row").onclick = () => go("wanted");
+  $("#i-missing-row").onclick = () => { store.set("filter", "missing"); go("movies"); };
   $("#mode").onclick = async () => { await saveConfig({ advanced_mode: !Turks.cfg.advanced_mode }); renderInfo(); if (Turks.page === "settings") rerender(); };
   await getToken();
   try {

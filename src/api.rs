@@ -106,17 +106,13 @@ fn handle(core: Core, mut req: Request) {
         let _ = req.respond(Response::from_string(html).with_header(header("Content-Type", "text/html")));
         return;
     }
-    let key = req
-        .headers()
-        .iter()
-        .find(|h| h.field.equiv("X-Api-Key"))
-        .map(|h| h.value.to_string())
-        .or_else(|| param("apikey"))
-        .unwrap_or_default();
-    if key != cfg.api_key {
-        return respond(req, 401, json!({"error": "Unauthorized"}));
-    }
+    // The calendar feed has its own read-only key, so a calendar link can't
+    // be used to change anything.
     if path.starts_with("/feed/") {
+        let cal = param("key").unwrap_or_default();
+        if cfg.calendar_key.is_empty() || cal != cfg.calendar_key {
+            return respond(req, 401, json!({"error": "Unauthorized"}));
+        }
         let past: i64 = param("pastdays").and_then(|v| v.parse().ok()).unwrap_or(14);
         let future: i64 = param("futuredays").and_then(|v| v.parse().ok()).unwrap_or(90);
         let unmonitored = param("unmonitored").map(|v| v == "true").unwrap_or(false);
@@ -124,6 +120,16 @@ fn handle(core: Core, mut req: Request) {
         let resp = Response::from_string(ics).with_header(header("Content-Type", "text/calendar; charset=utf-8"));
         let _ = req.respond(resp);
         return;
+    }
+    let key = req
+        .headers()
+        .iter()
+        .find(|h| h.field.equiv("X-Api-Key"))
+        .map(|h| h.value.to_string())
+        .or_else(|| param("apikey"))
+        .unwrap_or_default();
+    if key.is_empty() || key != cfg.api_key {
+        return respond(req, 401, json!({"error": "Unauthorized"}));
     }
     let mut body = String::new();
     let _ = req.as_reader().read_to_string(&mut body);
@@ -529,7 +535,7 @@ fn indexer_from_json(v: &Value, mut ix: Indexer) -> Indexer {
     ix
 }
 
-/// iCal feed for phone/desktop calendars: /feed/v3/calendar/turks.ics?apikey=KEY
+/// iCal feed for phone/desktop calendars: /feed/v3/calendar/turks.ics?key=CALENDAR_KEY
 fn ical(core: &Core, past_days: i64, future_days: i64, unmonitored: bool) -> String {
     let lib = core.lib();
     let today = chrono::Local::now().date_naive();

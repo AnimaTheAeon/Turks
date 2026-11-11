@@ -3,9 +3,9 @@
    settings save as soon as they change; records open an editor. */
 
 const SECTIONS = [
-  ["media", "Media Management", false], ["profiles", "Profiles", false], ["quality", "Quality", true], ["formats", "Custom Formats", false],
-  ["indexers", "Indexers", false], ["clients", "Download Clients", false], ["lists", "Import Lists", false], ["connect", "Connect", false],
-  ["metadata", "Metadata", false], ["tags", "Tags", false], ["general", "General", false], ["ui", "UI", false],
+  ["media", "Media Management", false], ["profiles", "Profiles", false], ["quality", "Quality", true], ["formats", "Custom Formats", true],
+  ["indexers", "Indexers", false], ["clients", "Download Clients", false], ["lists", "Import Lists", true], ["connect", "Connect", false],
+  ["metadata", "Metadata", true], ["tags", "Tags", true], ["general", "General", false], ["ui", "UI", false],
 ];
 
 // ---- settings bound to Turks.cfg, saved on change
@@ -46,7 +46,7 @@ Turks.pages.settings = {
     const body = el("div.scroll");
     main.append(el("div.page",
       el("div.page-head", el("h1", "Settings"),
-        el("span.dim", advanced ? "Advanced mode: showing everything" : isGreen() ? "Simple mode: the settings most people need" : "Simple mode: the settings most people need (switch with MODE in the side window)"),
+        el("span.dim", advanced ? "Advanced mode: showing everything" : isGreen() ? "Simple mode: just what you need to get going" : "Simple mode: the settings most people need (switch with MODE in the side window)"),
         isGreen() ? el("button", { onclick: async () => { await saveConfig({ advanced_mode: !advanced }); renderInfo(); rerender(); } }, advanced ? "MODE: ADVANCED" : "MODE: SIMPLE") : null),
       el("div.divider"), el("div.split", nav, body)));
     await loadLists(["tag", "root", "profile"]);
@@ -87,6 +87,16 @@ async function sMedia(body, advanced) {
     return el("div.field.stack", el("div.lbl", el("div.name", name), el("div.help", help)), el("div.ctl", input), ex);
   };
   example();
+  if (!advanced) {
+    // Simple mode: root folders and the three choices that matter day to day.
+    add(body, 
+    ...head("Root folders", "Folders that hold your movie folders. Each movie lives in its own folder inside one of these. The Turks system user needs Read/Write on the shared folder."), roots,
+      ...head("Files"),
+      cToggle("rename_movies", "Rename movies", "Give imported files tidy names like 'Movie (2010) Bluray-1080p'. Off keeps the downloaded file name."),
+      cToggle("use_hardlinks", "Use hardlinks instead of copy", "For torrents on the same volume: the movie appears in your library without using extra space, and keeps seeding."),
+      cPath("recycle_bin", "Recycle bin", "Where deleted and replaced files go. Leave empty to use the shared folder\'s own recycle bin (#recycle); if that\'s turned off for the share, files are deleted for good."));
+    return;
+  }
   add(body, 
     ...head("Root folders", "Folders that hold your movie folders. Each movie lives in its own folder inside one of these. The Turks system user needs Read/Write on the shared folder."), roots,
     ...head("Movie naming", "How Turks names folders and files when it imports. Uses Radarr's tokens."),
@@ -107,7 +117,7 @@ async function sMedia(body, advanced) {
     ...head("File management", "Upgrades, deletions and the recycle bin."),
     cToggle("unmonitor_deleted_movies", "Unmonitor deleted movies", "When a movie's file disappears from disk, stop monitoring it so it isn't downloaded again."),
     cSelect("propers", "Propers and repacks", "", Turks.meta.propers.map((p) => [p.value, p.label])),
-    cPath("recycle_bin", "Recycle bin", "Deleted and replaced files go here instead of being deleted. Empty = delete for real."),
+    cPath("recycle_bin", "Recycle bin", "Where deleted and replaced files go. Leave empty to use the shared folder\'s own recycle bin (#recycle); if that\'s turned off for the share, files are deleted for good."),
     cNum("recycle_bin_cleanup_days", "Recycle bin cleanup", "Delete files from the recycle bin after this many days (0 = never).", "days", 0, 365),
     advanced ? cToggle("create_empty_folders", "Create empty movie folders", "Make a folder for each movie as soon as it's added.") : null,
     advanced ? cToggle("delete_empty_folders", "Delete empty folders", "Remove download folders left empty after an import.") : null,
@@ -302,7 +312,9 @@ async function sIndexers(body, advanced) {
   await loadLists(["client", "indexer"]);
   add(body, ...head("Indexers", "Where Turks finds releases. Torznab for torrent sites (Prowlarr, Jackett), Newznab for usenet. Prowlarr can also push its indexers here: point it at this NAS on the API port in Settings › General."),
     el("div.toolbar", el("button", { onclick: () => prowlarrImport() }, "Import from Prowlarr…")),
-    recordCards("indexer", "Add indexer"),
+    recordCards("indexer", "Add indexer"));
+  if (!advanced) return;
+  add(body,
     ...head("Options", "Apply to every indexer."),
     cNum("rss_sync_interval_minutes", "RSS sync interval", "How often Turks checks indexers' latest releases. Minimum 10 minutes.", "min", 10, 720),
     cNum("availability_delay_days", "Availability delay", "Days before or after the release date to start searching (negative = earlier).", "days", -365, 365),
@@ -351,9 +363,11 @@ async function sClients(body, advanced) {
     ...head("Completed download handling", "Turks imports finished downloads by itself."),
     cToggle("completed_download_handling", "Enable", "Import completed downloads automatically."),
     cToggle("redownload_failed", "Redownload failed", "When a download fails, blocklist it and search for another release."),
+    cToggle("replace_stalled", "Replace stalled downloads", "When a download makes no progress for a long time (no seeders), blocklist it and search for another release. Off just flags it in Activity."),
+    advanced ? cNum("stalled_hours", "Stalled after", "Hours without progress before a download counts as stalled (0 = never).", "h", 0, 168) : null,
     advanced ? cToggle("redownload_failed_from_interactive", "…from interactive search too", "Also replace failed releases you picked by hand.") : null,
     advanced ? cNum("check_downloads_seconds", "Check every", "How often to ask download clients for progress.", "s", 15, 600) : null,
-    ...(advanced ? [] : [el("div.dim.small", { style: { marginTop: "8px" } }, "Remote path mappings are in Media Management (advanced mode).")]));
+);
 }
 
 async function sLists(body, advanced) {
@@ -422,8 +436,8 @@ async function sGeneral(body, advanced) {
         catch (e) { tmdbMsg.className = "notice bad"; tmdbMsg.textContent = e.message; }
       } }, "Test")]),
     tmdbMsg,
-    cText("metadata_language", "Metadata language", "Language for titles and overviews (e.g. en, de, fr, pt-BR)."),
-    cText("certification_country", "Certification country", "Country for age ratings and release dates (e.g. US, GB, DE)."),
+    advanced ? cText("metadata_language", "Metadata language", "Language for titles and overviews (e.g. en, de, fr, pt-BR).") : null,
+    advanced ? cText("certification_country", "Certification country", "Country for age ratings and release dates (e.g. US, GB, DE).") : null,
     ...head("API", "Lets Prowlarr, Overseerr/Jellyseerr and other apps talk to Turks the way they'd talk to Radarr."),
     cToggle("api_enabled", "Enable API", "Changes take effect after a restart."),
     cNum("api_port", "Port", "7878 is Radarr's port; change it if Radarr is also running on this NAS.", "", 1024, 65535),
@@ -431,11 +445,15 @@ async function sGeneral(body, advanced) {
     field("API key", "Other apps use this to connect.", [keyInput, el("button", { onclick: () => { keyInput.select(); navigator.clipboard && navigator.clipboard.writeText(keyInput.value); toast("Copied"); } }, "Copy"),
       el("button", { onclick: async () => { if (await confirmBox("New API key?", "Apps using the old key stop working until you update them.", "Regenerate", true)) { const r = await act("config/apikey", {}); if (r) { keyInput.value = r.api_key; Turks.cfg.api_key = r.api_key; } } } }, "Regenerate")]),
     el("div.dim.small", "Address for other apps: ", el("span.mono", lan), Turks.cfg.api_bind_all ? "" : " (turn on 'Allow other computers' first)"),
+    field("Calendar link", "The Calendar page's 'Copy iCal link' uses its own read-only key, so the link can't change anything. A new link stops the old one working.",
+      el("button", { onclick: async () => { if (await confirmBox("New calendar link?", "Calendars subscribed to the old link stop updating.", "New link", true)) { if (await act("config/calendarkey", {}, null, "New calendar link made. Copy it from the Calendar page.")) poll(); } } }, "New link")),
     advanced ? cText("url_base", "URL base", "For reverse proxies, e.g. /turks") : null,
-    ...head("Backups", "Turks backs up its database and settings automatically."),
-    cPath("backup_dir", "Backup folder", ""),
-    cNum("backup_interval_days", "Interval", "Days between automatic backups.", "days", 1, 7),
-    cNum("backup_retention_days", "Retention", "Automatic backups older than this are deleted.", "days", 1, 90),
+    ...(advanced ? [
+      ...head("Backups", "Turks backs up its database and settings automatically."),
+      cPath("backup_dir", "Backup folder", ""),
+      cNum("backup_interval_days", "Interval", "Days between automatic backups.", "days", 1, 7),
+      cNum("backup_retention_days", "Retention", "Automatic backups older than this are deleted.", "days", 1, 90),
+    ] : []),
     ...head("Updates", "New versions come from GitHub."),
     cToggle("auto_update", "Install updates automatically", "Needs the one-time Task Scheduler setup below."),
     update,
@@ -473,18 +491,24 @@ async function updatePanel(box) {
   );
 }
 
-async function sUi(body) {
+async function sUi(body, advanced) {
   add(body, ...head("Look"),
     field("Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it.",
       select([["ff", "FFVII menu"], ["green", "Box of X"]], Turks.cfg.theme || "ff", async (v) => {
         const r = await saveConfig({ theme: v });
         if (r) applyTheme(true);
       })),
+    ...(advanced ? uiDates() : []));
+}
+
+function uiDates() {
+  return [
     ...head("Calendar"),
     cSelect("first_day_of_week", "First day of the week", "", [[0, "Sunday"], [1, "Monday"]]),
     ...head("Dates and times"),
     cToggle("time_24h", "24-hour time", ""),
     cToggle("show_relative_dates", "Relative dates", "Show '3 h ago' instead of a date for recent things."),
     cToggle("runtime_hours_minutes", "Runtime as hours and minutes", "2h 16m instead of 136 min."),
-    el("div.dim.small", { style: { marginTop: "10px" } }, "Dates follow your browser's language and region."));
+    el("div.dim.small", { style: { marginTop: "10px" } }, "Dates follow your browser's language and region."),
+  ];
 }

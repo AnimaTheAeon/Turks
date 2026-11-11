@@ -93,6 +93,12 @@ pub struct Config {
     pub backup_retention_days: i64,
     pub last_backup: i64,
     pub check_updates: bool,
+    /// Key for the read-only calendar feed (separate from the API key).
+    pub calendar_key: String,
+    /// Flag a download that hasn't progressed for this many hours (0 = never).
+    pub stalled_hours: u32,
+    /// Replace a stalled download: blocklist it and search for another.
+    pub replace_stalled: bool,
     /// Synology: let the root Task Scheduler task install new versions.
     pub auto_update: bool,
     pub start_with_windows: bool,
@@ -190,6 +196,9 @@ impl Default for Config {
             backup_retention_days: 28,
             last_backup: 0,
             check_updates: true,
+            calendar_key: String::new(),
+            stalled_hours: 12,
+            replace_stalled: false,
             auto_update: true,
             start_with_windows: false,
             close_to_tray: true,

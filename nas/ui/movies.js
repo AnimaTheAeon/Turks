@@ -9,7 +9,7 @@ const store = {
 
 const FILTERS = [
   ["all", "All"], ["monitored", "Monitored"], ["unmonitored", "Unmonitored"], ["missing", "Missing"],
-  ["downloaded", "Downloaded"], ["downloading", "Downloading"], ["cutoff", "Cutoff unmet"],
+  ["downloaded", "Downloaded"], ["downloading", "Downloading"], ["cutoff", "Upgrade wanted"], ["unavailable", "Not out yet"],
 ];
 const SORTS = [
   ["title", "Title"], ["year", "Year"], ["added", "Added"], ["rating", "Rating"], ["size", "Size on disk"],
@@ -18,11 +18,13 @@ const SORTS = [
 
 function movieState(m) {
   if (m.downloading) return ["downloading", "DOWNLOADING"];
-  if (m.file) return m.cutoff_unmet ? ["cutoff", "CUTOFF UNMET"] : ["downloaded", "DOWNLOADED"];
+  if (m.file) return m.cutoff_unmet ? ["cutoff", "UPGRADE"] : ["downloaded", "DOWNLOADED"];
   if (!m.monitored) return ["unmonitored", "UNMONITORED"];
   return m.available ? ["missing", "MISSING"] : ["unavailable", "NOT AVAILABLE"];
 }
-const stateColor = { downloading: "info", cutoff: "warn", downloaded: "good", unmonitored: "dim", missing: "bad", unavailable: "dim" };
+// One colour per state, the same as the Windows app (see .s-* in turks.css).
+const stateColor = { downloading: "s-downloading", cutoff: "s-cutoff", downloaded: "s-downloaded", unmonitored: "s-unmonitored", missing: "s-missing", unavailable: "s-unavailable" };
+const STATE_KEY = [["downloaded", "Have"], ["downloading", "Downloading"], ["missing", "Missing"], ["cutoff", "Upgrade wanted"], ["unavailable", "Not out yet"], ["unmonitored", "Unmonitored"]];
 
 function posterArt(m, cls = "art") {
   const art = el("div." + cls, el("div.ph", m.title, el("small", m.year || "")));
@@ -58,18 +60,28 @@ Turks.pages.movies = {
     const drawPills = () => viewPills.replaceChildren(...[["posters", "Posters"], ["party", "Party"], ["table", "Table"]].map(([k, l]) => pill(l, ui.view === k, () => { ui.view = k; store.set("view", k); drawPills(); draw(); })));
     drawPills();
 
+    // "Search all" follows the filter: upgrades when that's what is showing.
+    const searchAll = el("button");
+    const drawSearchAll = () => {
+      const up = ui.filter === "cutoff";
+      searchAll.textContent = up ? "Search all upgrades" : "Search all missing";
+      searchAll.onclick = () => act("command", { name: up ? "cutoff" : "missing" }, null, up ? "Searching for upgrades…" : "Searching all missing movies…");
+    };
+    drawSearchAll();
     main.append(el("div.page",
       el("div.page-head", el("h1", "Movies"), search,
-        select(FILTERS, ui.filter, (v) => { ui.filter = v; store.set("filter", v); draw(); }),
+        select(FILTERS, ui.filter, (v) => { ui.filter = v; store.set("filter", v); drawSearchAll(); draw(); }),
         select(SORTS.map(([k, l]) => [k, "Sort: " + l]), ui.sort, (v) => { ui.sort = v; store.set("sort", v); draw(); }),
         el("button", { title: "Reverse order", onclick: () => { ui.desc = !ui.desc; store.set("desc", ui.desc); draw(); } }, "⇅"),
         viewPills),
       el("div.toolbar",
         el("button", { onclick: () => act("command", { name: "refresh", ids: [] }, null, "Refreshing all movies…") }, "Refresh & scan"),
         el("button", { onclick: () => act("command", { name: "rss" }, null, "RSS sync started") }, "RSS sync"),
-        el("button", { onclick: () => act("command", { name: "missing" }, null, "Searching all missing movies…") }, "Search all missing"),
+        searchAll,
         el("button", { onclick: () => { ui.selecting = !ui.selecting; ui.sel.clear(); drawMass(); draw(); } }, "Select"),
-        el("span.grow"), count),
+        el("span.grow"),
+        el("span.key", STATE_KEY.map(([k, l]) => el("span", el("i.st-" + k), l))),
+        count),
       massBar,
       el("div.divider"),
       content));
@@ -81,7 +93,8 @@ Turks.pages.movies = {
         switch (ui.filter) {
           case "monitored": if (!m.monitored) return false; break;
           case "unmonitored": if (m.monitored) return false; break;
-          case "missing": if (m.file || !m.monitored) return false; break;
+          case "missing": if (st !== "missing") return false; break;
+          case "unavailable": if (st !== "unavailable") return false; break;
           case "downloaded": if (!m.file) return false; break;
           case "downloading": if (st !== "downloading") return false; break;
           case "cutoff": if (!m.cutoff_unmet) return false; break;
@@ -235,7 +248,7 @@ async function renderDetail(main, id) {
 
   const tabsEl = el("div.tabs");
   const body = el("div.scroll");
-  const tabs = [["files", "Files"], ["search", "Search"], ["history", "History"], ["cast", "Cast & Crew"], d.collection || m.collection ? ["collection", "Collection"] : null].filter(Boolean);
+  const tabs = [["files", "Files"], ["search", "Releases"], ["history", "History"], ["cast", "Cast & Crew"], d.collection || m.collection ? ["collection", "Collection"] : null].filter(Boolean);
   const showTab = (t) => {
     store.set("detailTab", t);
     tabsEl.replaceChildren(...tabs.map(([k, l]) => pill(l, k === t, () => showTab(k))));
@@ -253,7 +266,10 @@ async function renderDetail(main, id) {
         el("span", (m.genres || []).join(", ")),
         r.tmdb ? el("span", "★ " + r.tmdb.toFixed(1) + " TMDb") : null,
         r.imdb ? el("span", "IMDb " + r.imdb.toFixed(1)) : null,
-        el("span.tag." + stateColor[st], label)),
+        el("span.tag." + stateColor[st], label),
+        el("a", { href: "https://www.themoviedb.org/movie/" + m.tmdb_id, target: "_blank" }, "TMDb"),
+        m.imdb_id ? el("a", { href: "https://www.imdb.com/title/" + m.imdb_id, target: "_blank" }, "IMDb") : null,
+        m.youtube_trailer ? el("a", { href: "https://www.youtube.com/watch?v=" + m.youtube_trailer, target: "_blank" }, "Trailer") : null),
       el("div.overview", m.overview || ""),
       el("div.kv",
         el("span.k", "Path"), el("span.ellipsis", m.path),
@@ -261,16 +277,16 @@ async function renderDetail(main, id) {
         el("span.k", "Status"), el("span", STATUS_LABEL[m.status] || m.status, m.in_cinemas ? " · cinemas " + dateStr(m.in_cinemas) : "", m.digital_release ? " · digital " + dateStr(m.digital_release) : "", m.physical_release ? " · disc " + dateStr(m.physical_release) : ""),
         m.tags.length ? el("span.k", "Tags") : null, m.tags.length ? el("span", m.tags.map(tagName).join(", ")) : null),
       el("div.toolbar",
-        el("button.primary", { onclick: () => act("command", { name: "search", ids: [m.id] }, null, "Searching…") }, "Search"),
-        el("button", { onclick: () => showTab("search") }, "Interactive"),
-        el("button", { onclick: () => act("command", { name: "refresh", ids: [m.id] }, null, "Refreshing…") }, "Refresh & scan"),
-        el("button", { onclick: () => renamePreview([m.id]) }, "Rename"),
-        el("button", { onclick: () => manualImport(m.path, m.id) }, "Manual import"),
+        el("button.primary", { title: "Find the best release and grab it", onclick: () => act("command", { name: "search", ids: [m.id] }, null, "Searching…") }, "Search"),
+        el("button", { title: "Search every indexer and choose a release yourself", onclick: () => showTab("search") }, "Pick release"),
         el("button", { onclick: () => editMovie(m) }, "Edit"),
-        el("button.danger", { onclick: async () => { if (await deleteMovies([m.id])) go("movies"); } }, "Delete"),
-        m.imdb_id ? el("a.small", { href: "https://www.imdb.com/title/" + m.imdb_id, target: "_blank" }, "IMDb") : null,
-        el("a.small", { href: "https://www.themoviedb.org/movie/" + m.tmdb_id, target: "_blank" }, "TMDb"),
-        m.youtube_trailer ? el("a.small", { href: "https://www.youtube.com/watch?v=" + m.youtube_trailer, target: "_blank" }, "Trailer") : null))),
+        menuButton("More", [
+          ["Refresh & scan", () => act("command", { name: "refresh", ids: [m.id] }, null, "Refreshing…")],
+          ["Rename files", () => renamePreview([m.id])],
+          ["Manual import", () => manualImport(m.path, m.id)],
+          null,
+          ["Delete", async () => { if (await deleteMovies([m.id])) go("movies"); }, "danger"],
+        ])))),
     el("div.divider"), tabsEl, el("div", { style: { height: "8px" } }), body));
   showTab(tabs.some((t) => t[0] === tab) ? tab : "files");
 }
@@ -296,7 +312,7 @@ function tabFiles(body, d) {
     el("tr", el("td.label", "Added"), el("td", f.date_added ? dateStr(f.date_added) : "")),
     f.scene_name ? el("tr", el("td.label", "Release"), el("td.wrap.dim", f.scene_name)) : null)),
     el("div.toolbar", el("button.danger", { onclick: async () => {
-      if (await confirmBox("Delete this file?", esc(f.relative_path) + "<br>It goes to the recycle bin if one is set.", "Delete", true)) {
+      if (await confirmBox("Delete this file?", esc(f.relative_path) + "<br>It goes to the recycle bin.", "Delete", true)) {
         if (await act("delete", {}, { kind: "file", id: f.id }, "File deleted")) rerender();
       }
     } }, "Delete file")));

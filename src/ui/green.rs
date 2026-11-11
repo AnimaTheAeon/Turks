@@ -227,7 +227,7 @@ impl App {
         self.green_in_page = false;
         self.green_unzoom = Some(std::time::Instant::now());
         self.detail = None;
-        if let Some(i) = MENU.iter().position(|m| m.0 == self.page) {
+        if let Some(i) = MENU.iter().position(|m| m.0 == self.page.menu()) {
             self.green_cursor = i;
         }
     }
@@ -426,7 +426,7 @@ impl App {
         }
         let label = match (self.page, &self.detail) {
             (Page::Movies, Some(d)) => self.core.lib().movies.get(&d.id).map(|m| m.title.clone()).unwrap_or_else(|| "Movies".into()),
-            _ => MENU.iter().find(|m| m.0 == self.page).map(|m| m.1).unwrap_or("Movies").to_string(),
+            _ => MENU.iter().find(|m| m.0 == self.page.menu()).map(|m| m.1).unwrap_or("Movies").to_string(),
         };
 
         let bar = Rect::from_min_size(full.min, Vec2::new((full.width() * 0.42).clamp(300.0, 560.0), 56.0));
