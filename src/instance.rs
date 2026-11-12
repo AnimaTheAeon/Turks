@@ -16,6 +16,34 @@ pub enum Incoming {
     Replace,
 }
 
+/// File the installer drops to ask a running Turks to quit.
+pub const QUIT_REQUEST: &str = "quit.request";
+
+/// Remove a quit request left over from an earlier install.
+pub fn clear_quit_request() {
+    let _ = std::fs::remove_file(crate::config::data_dir().join(QUIT_REQUEST));
+}
+
+/// Watch for the installer's quit request. Asks the window to close first;
+/// if that hasn't finished in 3 seconds (e.g. the window is hidden in the
+/// tray), saves and exits directly.
+pub fn watch_quit_request(core: crate::core::Core, tx: Sender<Incoming>, wake: impl Fn() + Send + 'static) {
+    let path = crate::config::data_dir().join(QUIT_REQUEST);
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(400));
+        if !path.exists() {
+            continue;
+        }
+        let _ = std::fs::remove_file(&path);
+        crate::applog::info("Installer asked Turks to close");
+        let _ = tx.send(Incoming::Replace);
+        wake();
+        std::thread::sleep(Duration::from_secs(3));
+        core.shutdown();
+        std::process::exit(0);
+    });
+}
+
 fn newer(v: &str) -> bool {
     crate::updater::is_newer(v, crate::updater::APP_VERSION)
 }

@@ -82,6 +82,7 @@ fn main() -> eframe::Result<()> {
     }
     #[cfg(windows)]
     winint::hold_install_mutex();
+    instance::clear_quit_request();
 
     let core = match core::Core::open() {
         Ok(c) => c,
@@ -112,6 +113,7 @@ fn main() -> eframe::Result<()> {
     // Run without a window (used by tests and for running as a service).
     if headless {
         let (tx, _rx) = std::sync::mpsc::channel();
+        instance::watch_quit_request(core.clone(), tx.clone(), || {});
         instance::serve(listener, tx, || {});
         loop {
             std::thread::sleep(std::time::Duration::from_secs(3600));
@@ -137,6 +139,8 @@ fn main() -> eframe::Result<()> {
         Box::new(move |cc| {
             let (tx, rx) = std::sync::mpsc::channel();
             let ctx = cc.egui_ctx.clone();
+            let ctx2 = cc.egui_ctx.clone();
+            instance::watch_quit_request(core.clone(), tx.clone(), move || ctx2.request_repaint());
             instance::serve(listener, tx, move || ctx.request_repaint());
             Ok(Box::new(ui::App::new(cc, core, rx, start_hidden, restored)))
         }),

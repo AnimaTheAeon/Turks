@@ -1,6 +1,6 @@
 [package]
 name = "turks"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 build = "build.rs"
 description = "A movie collection manager (Radarr-style) with a classic JRPG menu look."
@@ -59,3 +59,7 @@ opt-level = 3
 [[bin]]
 name = "turks"
 path = "src/main.rs"
+
+# Only for the click-through test (src/ui/clicktest.rs), run by hand on Linux.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+egui_kittest = { version = "0.36.1", default-features = false, features = ["eframe"] }

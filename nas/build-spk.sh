@@ -15,6 +15,12 @@ mkdir -p "$WORK/pkg/bin" "$WORK/pkg/ui"
 install -m 755 "$BIN" "$WORK/pkg/bin/turks"
 cp -R "$HERE/ui/." "$WORK/pkg/ui/"
 chmod 755 "$WORK/pkg/ui/api.cgi"
+# Make browsers fetch this version's files instead of cached old ones.
+sed -i "s/@VERSION@/$VERSION/g" "$WORK/pkg/ui/index.html" "$WORK/pkg/ui/Turks.js"
+if grep -q "@VERSION@" "$WORK/pkg/ui/index.html" "$WORK/pkg/ui/Turks.js"; then
+	echo "version stamp missing" >&2
+	exit 1
+fi
 (cd "$WORK/pkg" && tar --owner=0 --group=0 -czf "$WORK/package.tgz" bin ui)
 
 # spk layout

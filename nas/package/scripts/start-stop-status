@@ -3,28 +3,38 @@
 PID_FILE="$SYNOPKG_PKGVAR/turks.pid"
 BIN="$SYNOPKG_PKGDEST/bin/turks"
 
+# Running = the PID file names a live process that really is Turks. After a
+# power cut the old number can belong to another program; that must not count
+# (or Turks would never start again) and must never be stopped.
 is_running() {
-	[ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+	[ -f "$PID_FILE" ] || return 1
+	PID="$(cat "$PID_FILE" 2>/dev/null)"
+	case "$PID" in
+		'' | *[!0-9]*) return 1 ;;
+	esac
+	[ -r "/proc/$PID/cmdline" ] || return 1
+	tr '\000' ' ' < "/proc/$PID/cmdline" 2>/dev/null | grep -q "bin/turks daemon"
 }
 
 case "$1" in
 	start)
 		is_running && exit 0
+		rm -f "$PID_FILE"
 		export SYNOPKG_PKGVAR
 		export TURKS_DATA_DIR="$SYNOPKG_PKGVAR"
 		nohup "$BIN" daemon >> "$SYNOPKG_PKGVAR/service.out" 2>&1 < /dev/null &
-		# Give it a moment so DSM sees it running.
+		# Give it a moment so DSM sees it running (it writes its PID first thing).
 		i=0
-		while [ $i -lt 20 ]; do
+		while [ $i -lt 30 ]; do
 			is_running && exit 0
-			sleep 0.25
+			sleep 0.5
 			i=$((i + 1))
 		done
+		echo "Turks didn't start. See $SYNOPKG_PKGVAR/service.out" >&2
 		exit 1
 		;;
 	stop)
 		if is_running; then
-			PID="$(cat "$PID_FILE")"
 			kill -TERM "$PID" 2>/dev/null
 			i=0
 			while [ $i -lt 40 ] && kill -0 "$PID" 2>/dev/null; do
