@@ -60,6 +60,3 @@ opt-level = 3
 name = "turks"
 path = "src/main.rs"
 
-# Only for the click-through test (src/ui/clicktest.rs), run by hand on Linux.
-[target.'cfg(target_os = "linux")'.dev-dependencies]
-egui_kittest = { version = "0.36.1", default-features = false, features = ["eframe"] }
