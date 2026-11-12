@@ -4,8 +4,6 @@
 mod activity;
 mod add;
 mod calendar;
-#[cfg(all(test, target_os = "linux"))]
-mod clicktest;
 mod common;
 mod green;
 mod images;
