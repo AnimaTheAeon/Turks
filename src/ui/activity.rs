@@ -181,11 +181,13 @@ impl App {
                     self.activity.history_page = 0;
                 }
             });
-            if ui.button("‹ Newer").clicked() && self.activity.history_page > 0 {
-                self.activity.history_page -= 1;
+            let page = self.activity.history_page;
+            let last = self.activity.history.as_ref().map(|h| ((h.3 + page_size - 1) / page_size - 1).max(0)).unwrap_or(0);
+            if ui.add_enabled(page > 0, egui::Button::new("‹ Newer")).clicked() {
+                self.activity.history_page = page - 1;
             }
-            if ui.button("Older ›").clicked() {
-                self.activity.history_page += 1;
+            if ui.add_enabled(page < last, egui::Button::new("Older ›")).clicked() {
+                self.activity.history_page = page + 1;
             }
             if ui.button("Refresh").clicked() {
                 self.activity.history = None;
@@ -200,6 +202,11 @@ impl App {
             let items = self.core.db.history_page(key.0 * page_size, page_size, key.1);
             let total = self.core.db.history_count(key.1);
             self.activity.history = Some((key.0, key.1, items, total));
+            // History got shorter (cleared, or entries removed): back to its last page.
+            if key.0 > 0 && key.0 * page_size >= total {
+                self.activity.history_page = ((total + page_size - 1) / page_size - 1).max(0);
+                ui.ctx().request_repaint();
+            }
         }
         let (_, _, items, total) = self.activity.history.clone().unwrap();
         ui.label(common::dim_text(&format!("Page {} of {}", key.0 + 1, (total as f64 / page_size as f64).ceil().max(1.0))));

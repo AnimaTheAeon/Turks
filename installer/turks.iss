@@ -35,9 +35,10 @@ Compression=lzma2/max
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+; Setup closes a running Turks itself (see CloseTurks below) instead of
+; stopping to ask, so an install never waits on a copy hidden in the tray.
 CloseApplications=force
 RestartApplications=no
-AppMutex=TurksSingleInstance
 LicenseFile=..\LICENSE
 
 [Languages]
@@ -65,6 +66,59 @@ Filename: "{app}\{#MyAppExe}"; Description: "Launch Turks"; Flags: nowait postin
 Filename: "{app}\{#MyAppExe}"; Parameters: "--after-update"; Flags: nowait; Check: WizardSilent
 
 [Code]
+const
+  TurksMutex = 'TurksSingleInstance';
+
+function TurksGone(Steps: Integer): Boolean;
+var
+  I: Integer;
+begin
+  for I := 1 to Steps do
+  begin
+    if not CheckForMutexes(TurksMutex) then
+    begin
+      Result := True;
+      Exit;
+    end;
+    Sleep(250);
+  end;
+  Result := not CheckForMutexes(TurksMutex);
+end;
+
+{ Ask a running Turks to save and quit; force it after 10 seconds. }
+function CloseTurks(): Boolean;
+var
+  DataDir: String;
+  ResultCode: Integer;
+begin
+  Result := True;
+  if not CheckForMutexes(TurksMutex) then
+    Exit;
+  DataDir := ExpandConstant('{userappdata}\Turks');
+  ForceDirectories(DataDir);
+  SaveStringToFile(DataDir + '\quit.request', '1', False);
+  if not TurksGone(40) then
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExe}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Result := TurksGone(40);
+  end;
+  DeleteFile(DataDir + '\quit.request');
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if not CloseTurks() then
+    Result := 'Turks is still running and could not be closed. Quit it from its tray icon, then click Back and Next.';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  Result := CloseTurks();
+  if not Result and not UninstallSilent then
+    MsgBox('Turks is still running and could not be closed. Quit it from its tray icon and run the uninstaller again.', mbError, MB_OK);
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   DataDir: String;

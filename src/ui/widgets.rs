@@ -199,12 +199,16 @@ pub fn pill(ui: &mut Ui, text: &str, selected: bool) -> egui::Response {
         (false, false) => Color32::from_rgb(12, 20, 72),
     };
     let fill = if selected && !green { Color32::from_rgb(60, 100, 200) } else { fill };
-    ui.add(
+    let r = ui.add(
         egui::Button::new(RichText::new(text).color(color).strong())
             .fill(fill)
             .corner_radius(12.0)
             .min_size(egui::vec2(0.0, 26.0)),
-    )
+    );
+    // Tell screen readers which tab is selected, not just by colour.
+    let enabled = ui.is_enabled();
+    r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, enabled, selected, text));
+    r
 }
 
 /// Clickable header that opens and closes a details area (a painted arrow,
