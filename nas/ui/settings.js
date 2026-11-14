@@ -493,8 +493,8 @@ async function updatePanel(box) {
 
 async function sUi(body, advanced) {
   add(body, ...head("Look"),
-    field("Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways.",
-      select([["ff", "FFVII menu"], ["green", "Box of X"], ["blades", "Blades"]], Turks.cfg.theme || "ff", async (v) => {
+    field("Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways.",
+      select([["ff", "FFVII Menu"], ["green", "Xbox"], ["blades", "Blades"]], Turks.cfg.theme || "ff", async (v) => {
         const r = await saveConfig({ theme: v });
         if (r) applyTheme(true);
       })),
