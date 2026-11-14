@@ -3,6 +3,8 @@
 
 mod activity;
 mod add;
+mod blades;
+mod blades_layout;
 mod calendar;
 mod common;
 mod green;
@@ -95,6 +97,8 @@ pub struct App {
     pub green_reveal: Option<std::time::Instant>,
     pub green_leave: Option<std::time::Instant>,
     pub green_unzoom: Option<std::time::Instant>,
+    /// Blades theme: slide state between frames.
+    pub blades: blades::State,
 }
 
 impl App {
@@ -146,6 +150,7 @@ impl App {
             green_reveal: None,
             green_leave: None,
             green_unzoom: None,
+            blades: Default::default(),
             core,
         }
     }
@@ -261,6 +266,9 @@ impl App {
     fn layout(&mut self, ui: &mut egui::Ui) {
         if ff::is_green() {
             return self.green_layout(ui);
+        }
+        if ff::is_blades() {
+            return self.blades_layout(ui);
         }
         let full = ui.max_rect();
         let gap = 12.0;
@@ -523,7 +531,7 @@ impl eframe::App for App {
         // Box of X paints its own background (fade and grid) behind the panel.
         let fill = if ff::is_green() { egui::Color32::TRANSPARENT } else { ff::BACKDROP() };
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(fill).inner_margin(egui::Margin::same(14)))
+            .frame(egui::Frame::new().fill(fill).inner_margin(egui::Margin::same(if ff::is_blades() { 0 } else { 14 })))
             .show(ui, |ui| self.layout(ui));
     }
 

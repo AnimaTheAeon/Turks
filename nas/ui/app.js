@@ -225,7 +225,8 @@ function go(page, arg) {
   renderMenu();
   const main = $("#main");
   main.replaceChildren();
-  if (isGreen()) {
+  if (isBlades()) bladesShow(page);
+  else if (isGreen()) {
     Turks.home = false;
     document.body.classList.remove("ghome-on");
     setGreenTitle((MENU.find((m) => m[0] === menuOf(page)) || [, page])[1]);
@@ -272,6 +273,7 @@ function renderInfo() {
   $("#statusbar .badge").className = "badge " + level;
   $("#status-text").textContent = text;
   $("#status-text").className = level === "good" ? "" : level;
+  drawBladesStatus(text, level);
   if (isGreen()) {
     const top = `Turks v${s.version} · ${Turks.cfg && Turks.cfg.advanced_mode ? "Advanced" : "Simple"} mode · up ${clock(s.uptime_secs)}`;
     const box = [el("span.orb" + (level === "good" ? "" : "." + level)), el("div.lines", el("div.l1", top), el("div.l2" + (level === "good" ? "" : "." + level), text))];
@@ -326,6 +328,7 @@ function closeModal() { while (modalStack.length) modalStack[modalStack.length -
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && modalStack.length) { modalStack[modalStack.length - 1].close(); e.preventDefault(); return; }
   if (isGreen()) greenKey(e);
+  else if (isBlades()) bladesKey(e);
 });
 
 function confirmBox(title, text, okLabel = "OK", danger = false, extra = null) {
@@ -427,6 +430,125 @@ function tagPicker(ids, onchange) {
   return wrap;
 }
 
+// ---------------------------------------------------------------- Blades theme
+// Glossy silver blades; the open one wears its page's color. The page itself
+// (#main) moves into the open blade, so every page works as before.
+// Project doc claude/themes/blades.md (same look as Lifestream's NAS page).
+
+const isBlades = () => !!(Turks.cfg && Turks.cfg.theme === "blades");
+let bstage = null, bcur = 0, bdrag = null;
+const BARROW = (d) => `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function bladesBuild() {
+  if (bstage) return;
+  bstage = el("div#bstage", { "aria-label": "Blades" });
+  document.body.insertBefore(bstage, $(".layout"));
+  const nav = (dir, label, d) => { const b = el("button.bnav", { "data-dir": dir, "aria-label": label, onclick: () => bladesStep(dir) }); b.innerHTML = BARROW(d); return b; };
+  MENU.forEach(([key, label]) => {
+    const band = el("div.bband",
+      el("h1", label),
+      el("span.bchip", { title: "Open System", onclick: () => { if (Turks.page !== "system") go("system"); } }, el("span.bdot"), el("span.btxt")),
+      el("span.bspeed"));
+    const foot = el("div.bfoot",
+      el("span.bkey.bhint", "← →"), el("span.bhint", "Blades"),
+      el("span.bkey.bhint", "ENTER"), el("span.bhint", "Select"),
+      el("span.bkey.bhint", "ESC"), el("span.bhint", "Back"),
+      el("span.bnavs", nav(-1, "Previous blade", "M10 3 L5 8 L10 13"), nav(1, "Next blade", "M6 3 L11 8 L6 13")));
+    bstage.append(el("section.bsec.k-" + key, { "aria-label": label },
+      el("button.btab", { "aria-label": label, onclick: () => { if (menuOf(Turks.page) !== key) go(key); } }, el("span.blabel", label.toLowerCase())),
+      el("div.bwrap", el("div.bpanel", band, el("div.bbody"), foot))));
+  });
+  bstage.append(el("div.bedge", { "aria-hidden": "true" }));
+  // Swipe sideways: anywhere with a finger, or from a tab or the top band with the mouse.
+  bstage.addEventListener("pointerdown", (e) => { bdrag = { x: e.clientX, y: e.clientY, ok: e.pointerType === "touch" || !!e.target.closest(".btab, .bband") }; });
+  bstage.addEventListener("pointerup", (e) => {
+    if (!bdrag || !bdrag.ok) { bdrag = null; return; }
+    const dx = e.clientX - bdrag.x, dy = e.clientY - bdrag.y; bdrag = null;
+    if (Math.abs(dx) > 70 && Math.abs(dy) < 60) bladesStep(dx < 0 ? 1 : -1);
+  });
+}
+
+function bladesPlace(instant) {
+  if (!bstage) return;
+  const W = innerWidth, narrow = W < 700, p = narrow ? 30 : 52, r = narrow ? 20 : 44, edge = narrow ? 14 : 30, n = MENU.length;
+  const ms = instant || calm() ? 0 : 700;
+  bstage.style.cssText = `--p:${p}px;--r:${r}px;--edge:${edge}px;--bw:${W - edge - (n - 1) * p + r}px;--ms:${ms}ms`;
+  $$(".bsec", bstage).forEach((s, i) => {
+    s.style.transform = `translateX(${i <= bcur ? i * p : W - edge - (n - i) * p}px)`;
+    s.style.zIndex = 10 + i;
+    s.classList.toggle("open", i === bcur);
+    $(".btab", s).tabIndex = i === bcur ? -1 : 0;
+    $(".bwrap", s).inert = i !== bcur;
+  });
+  $$(".bnav", bstage).forEach((b) => { b.disabled = (+b.dataset.dir < 0 && bcur === 0) || (+b.dataset.dir > 0 && bcur === n - 1); });
+}
+
+/** Open the blade for `page`: #main moves into it and the blades slide. */
+function bladesShow(page, instant) {
+  bladesBuild();
+  const i = Math.max(0, MENU.findIndex((m) => m[0] === menuOf(page)));
+  const slot = $$(".bbody", bstage)[i], main = $("#main");
+  if (main.parentNode !== slot) slot.append(main);
+  bcur = i;
+  setBladeTitle(MENU[i][1]);
+  bladesPlace(instant);
+  renderInfo();
+}
+
+function bladesOff() {
+  const main = $("#main"), layout = $(".layout");
+  if (main && layout && main.parentNode !== layout) layout.insertBefore(main, $(".side"));
+}
+
+function setBladeTitle(text) {
+  if (!bstage) return;
+  const h = $$(".bsec", bstage)[bcur];
+  if (h) $(".bband h1", h).textContent = text;
+}
+
+function bladesStep(d) {
+  const j = Math.max(0, Math.min(MENU.length - 1, bcur + d));
+  if (j !== bcur) go(MENU[j][0]);
+}
+
+function drawBladesStatus(text, level) {
+  if (!isBlades() || !bstage) return;
+  const chip = level === "good" ? "All good" : level === "bad" ? "Problem" : "Needs a look";
+  $$(".bband", bstage).forEach((b) => {
+    $(".btxt", b).textContent = chip;
+    $(".bdot", b).className = "bdot " + (level === "good" ? "" : level);
+    $(".bspeed", b).textContent = text;
+    $(".bspeed", b).title = text;
+  });
+}
+
+/** Esc / mouse back in Blades: a dialog, then movie details, then a blade. */
+function bladesKey(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const tag = (document.activeElement || {}).tagName || "";
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
+  if (e.key === "ArrowRight") { e.preventDefault(); bladesStep(1); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); bladesStep(-1); }
+  else if (e.key === "Escape") {
+    if (Turks.page === "movies" && Turks.arg) { e.preventDefault(); go("movies"); }
+    else if (bcur > 0) { e.preventDefault(); go(MENU[0][0]); }
+  } else if (e.key === "Enter" && (!tag || tag === "BODY")) {
+    const first = $(".bsec.open .bbody button, .bsec.open .bbody input, .bsec.open .bbody select", bstage);
+    if (first) { e.preventDefault(); first.focus(); }
+  }
+}
+for (const type of ["mousedown", "mouseup"]) {
+  window.addEventListener(type, (e) => {
+    if (e.button !== 3 || !isBlades()) return;
+    e.preventDefault();
+    if (type !== "mouseup") return;
+    if (modalStack.length) return modalStack[modalStack.length - 1].close();
+    if (Turks.page === "movies" && Turks.arg) return go("movies");
+    bladesStep(-1);
+  });
+}
+addEventListener("resize", () => { if (isBlades()) bladesPlace(true); });
+
 // ---------------------------------------------------------------- Box of X theme
 
 const isGreen = () => !!(Turks.cfg && Turks.cfg.theme === "green");
@@ -435,8 +557,17 @@ Turks.cursor = 0;
 
 /** Switch looks to match Turks.cfg.theme. `stay` keeps the current page open. */
 function applyTheme(stay) {
-  const green = isGreen();
+  const green = isGreen(), blades = isBlades();
   document.body.classList.toggle("green", green);
+  document.body.classList.toggle("blades", blades);
+  if (blades) {
+    document.body.classList.remove("ghome-on");
+    Turks.home = false;
+    bladesShow(Turks.page, true);
+    if (stay) go(Turks.page, Turks.arg);
+    return;
+  }
+  bladesOff();
   if (!green) {
     document.body.classList.remove("ghome-on");
     Turks.home = false;

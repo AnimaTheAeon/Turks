@@ -68,8 +68,14 @@ fn card(ui: &mut Ui, title: &str, sub: &str, ok: Option<bool>) -> (egui::Respons
     let hovered = r.hovered();
     ui.painter().rect(
         rect,
-        egui::CornerRadius::same(if ff::is_green() { 1 } else { 5 }),
-        if ff::is_green() { egui::Color32::from_rgba_premultiplied(2, 18, 2, 160) } else { egui::Color32::from_rgba_premultiplied(8, 12, 52, 150) },
+        egui::CornerRadius::same(if ff::is_green() { 1 } else if ff::is_blades() { 14 } else { 5 }),
+        if ff::is_green() {
+            egui::Color32::from_rgba_premultiplied(2, 18, 2, 160)
+        } else if ff::is_blades() {
+            egui::Color32::from_rgba_unmultiplied(255, 255, 255, 24)
+        } else {
+            egui::Color32::from_rgba_premultiplied(8, 12, 52, 150)
+        },
         egui::Stroke::new(1.0, if hovered { LABEL() } else { ff::BORDER_MID() }),
         egui::StrokeKind::Inside,
     );
@@ -103,7 +109,8 @@ impl App {
         let mut flip = false;
         ui.horizontal(|ui| {
             ff::title(ui, "Settings", 26.0, TEXT());
-            if ff::is_green() {
+            // Box of X and Blades have no side window, so MODE sits here.
+            if ff::is_green() || ff::is_blades() {
                 ui.label(common::dim_text(if advanced { "Advanced mode: showing everything" } else { "Simple mode: the settings most people need" }));
                 let label = if advanced { "MODE: ADVANCED" } else { "MODE: SIMPLE" };
                 flip = ui
@@ -876,11 +883,11 @@ impl App {
         let c = &mut self.cfg;
         let mut ch = false;
         w::section_help(ui, "Look", "");
-        ch |= w::row(ui, "Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it.", |ui| {
+        ch |= w::row(ui, "Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways.", |ui| {
             let mut changed = false;
             let cur = ff::Theme::from_key(&c.theme);
             egui::ComboBox::from_id_salt("theme").selected_text(cur.label()).show_ui(ui, |ui| {
-                for t in [ff::Theme::FfMenu, ff::Theme::GreenDash] {
+                for t in [ff::Theme::FfMenu, ff::Theme::GreenDash, ff::Theme::Blades] {
                     if ui.selectable_label(cur == t, t.label()).clicked() && cur != t {
                         c.theme = t.key().to_string();
                         changed = true;

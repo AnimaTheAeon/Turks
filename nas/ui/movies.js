@@ -236,6 +236,7 @@ async function renderDetail(main, id) {
   await loadLists(["profile", "tag", "root"]);
   const m = d.movie;
   if (isGreen()) setGreenTitle(m.title);
+  if (isBlades()) setBladeTitle(m.title);
   const tab = store.get("detailTab", "files");
   const back = el("div.backdrop");
   if (m.fanart_path) back.style.backgroundImage = `url("${imgUrl("fanart", m.tmdb_id, m.fanart_path)}")`;

@@ -296,6 +296,11 @@ impl App {
                     }
                 });
             }
+            // Not enough room left for the colour key: give it its own row
+            // (otherwise it draws over the buttons in narrow windows).
+            if ui.max_rect().right() - ui.cursor().left() < 600.0 {
+                ui.end_row();
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(common::dim_text(&format!("{} of {total}", list.len())));
                 // Colour key for the bar under each poster.
