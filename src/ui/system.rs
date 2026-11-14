@@ -255,7 +255,7 @@ impl App {
     /// Radarr's "Test parsing": what Turks makes of a release name.
     fn sys_parse(&mut self, ui: &mut Ui) {
         ui.label(common::dim_text("Paste a release or file name to see how Turks reads it."));
-        ui.add(egui::TextEdit::singleline(&mut self.system.parse).hint_text("The.Matrix.1999.1080p.BluRay.x264-GROUP").desired_width(f32::INFINITY));
+        ui.add(egui::TextEdit::singleline(&mut self.system.parse).margin(crate::ui::theme::input_margin()).hint_text("The.Matrix.1999.1080p.BluRay.x264-GROUP").desired_width(f32::INFINITY));
         let t = self.system.parse.trim().to_string();
         if t.is_empty() {
             return;

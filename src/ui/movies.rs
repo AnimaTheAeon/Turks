@@ -212,7 +212,7 @@ impl App {
         ui.horizontal_wrapped(|ui| {
             ff::title(ui, "Movies", 26.0, TEXT());
             ui.add_space(8.0);
-            ui.add(egui::TextEdit::singleline(&mut self.movies.search).hint_text("Find: title, year, genre, tag").desired_width(200.0));
+            ui.add(egui::TextEdit::singleline(&mut self.movies.search).margin(crate::ui::theme::input_margin()).hint_text("Find: title, year, genre, tag").desired_width(200.0));
             egui::ComboBox::from_id_salt("movie-filter").selected_text(self.movies.filter.label()).show_ui(ui, |ui| {
                 for f in Filter::ALL {
                     ui.selectable_value(&mut self.movies.filter, f, f.label());
@@ -1094,7 +1094,7 @@ impl App {
                         ui.add(egui::Label::new(RichText::new(d.path.file_name().unwrap_or_default().to_string_lossy()).color(TEXT()).size(12.0)).truncate()).on_hover_text(d.path.display().to_string());
                         let current = d.movie_id.and_then(|id| lib.movies.get(&id)).map(|m| m.display()).unwrap_or_else(|| "Choose movie…".into());
                         egui::ComboBox::from_id_salt(("mi-movie", i)).selected_text(current).width(220.0).show_ui(ui, |ui| {
-                            ui.add(egui::TextEdit::singleline(&mut s.movie_search[i]).hint_text("filter"));
+                            ui.add(egui::TextEdit::singleline(&mut s.movie_search[i]).margin(crate::ui::theme::input_margin()).hint_text("filter"));
                             let q = s.movie_search[i].to_lowercase();
                             for m in lib.movies.values().filter(|m| q.is_empty() || m.title.to_lowercase().contains(&q)).take(60) {
                                 if ui.selectable_label(d.movie_id == Some(m.id), m.display()).clicked() {

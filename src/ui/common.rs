@@ -225,7 +225,7 @@ pub fn tags_editor(ui: &mut Ui, id: &str, core: &crate::core::Core, tags: &mut V
             tags.retain(|x| *x != r);
             changed = true;
         }
-        let resp = ui.add(egui::TextEdit::singleline(new_tag).hint_text("add tag").desired_width(110.0).id_salt(id));
+        let resp = ui.add(egui::TextEdit::singleline(new_tag).margin(crate::ui::theme::input_margin()).hint_text("add tag").desired_width(110.0).id_salt(id));
         let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
         if (enter || ui.small_button("+").clicked()) && !new_tag.trim().is_empty() {
             let label = new_tag.trim().to_lowercase();
@@ -540,7 +540,7 @@ impl App {
                     ui.add(egui::Label::new(super::dim("Movie info and posters come from TMDb. A key is free: sign up at themoviedb.org, then Settings › API › Create. Either the API key or the read access token works.")).wrap());
                     ui.hyperlink_to("Get a TMDb key", "https://www.themoviedb.org/settings/api");
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut fr.key).desired_width(360.0).hint_text("paste your key"));
+                        ui.add(egui::TextEdit::singleline(&mut fr.key).margin(crate::ui::theme::input_margin()).desired_width(360.0).hint_text("paste your key"));
                         let busy = fr.test.is_some();
                         if ui.add_enabled(!busy && !fr.key.trim().is_empty(), egui::Button::new(if busy { "Checking…" } else { "Check" })).clicked() {
                             let t = crate::tmdb::Tmdb::new(&fr.key, "en", "US");

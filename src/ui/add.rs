@@ -125,7 +125,7 @@ impl App {
         }
         let mut go = false;
         ui.horizontal(|ui| {
-            let r = ui.add(egui::TextEdit::singleline(&mut self.add.term).hint_text("Movie title, \"title 2019\", tmdb:603 or tt0133093").desired_width(420.0));
+            let r = ui.add(egui::TextEdit::singleline(&mut self.add.term).margin(crate::ui::theme::input_margin()).hint_text("Movie title, \"title 2019\", tmdb:603 or tt0133093").desired_width(420.0));
             if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 go = true;
             }
@@ -498,7 +498,7 @@ impl App {
         let lib = self.core.lib().clone();
         ui.horizontal(|ui| self.add_tabs(ui));
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.collections.search).hint_text("Find a collection").desired_width(200.0));
+            ui.add(egui::TextEdit::singleline(&mut self.collections.search).margin(crate::ui::theme::input_margin()).hint_text("Find a collection").desired_width(200.0));
             if ui.button("Refresh collections").on_hover_text("Find collections your movies belong to, and add missing movies from monitored ones").clicked() {
                 self.core.run(crate::core::Command::RefreshCollections);
             }
