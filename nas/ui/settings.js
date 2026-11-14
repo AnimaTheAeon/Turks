@@ -46,8 +46,8 @@ Turks.pages.settings = {
     const body = el("div.scroll");
     main.append(el("div.page",
       el("div.page-head", el("h1", "Settings"),
-        el("span.dim", advanced ? "Advanced mode: showing everything" : isGreen() ? "Simple mode: just what you need to get going" : "Simple mode: the settings most people need (switch with MODE in the side window)"),
-        isGreen() ? el("button", { onclick: async () => { await saveConfig({ advanced_mode: !advanced }); renderInfo(); rerender(); } }, advanced ? "MODE: ADVANCED" : "MODE: SIMPLE") : null),
+        el("span.dim", advanced ? "Advanced mode: showing everything" : isGreen() || isBlades() ? "Simple mode: just what you need to get going" : "Simple mode: the settings most people need (switch with MODE in the side window)"),
+        isGreen() || isBlades() ? el("button", { onclick: async () => { await saveConfig({ advanced_mode: !advanced }); renderInfo(); rerender(); } }, advanced ? "MODE: ADVANCED" : "MODE: SIMPLE") : null),
       el("div.divider"), el("div.split", nav, body)));
     await loadLists(["tag", "root", "profile"]);
     await ({ media: sMedia, profiles: sProfiles, quality: sQuality, formats: sFormats, indexers: sIndexers, clients: sClients, lists: sLists,
@@ -493,8 +493,8 @@ async function updatePanel(box) {
 
 async function sUi(body, advanced) {
   add(body, ...head("Look"),
-    field("Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it.",
-      select([["ff", "FFVII menu"], ["green", "Box of X"]], Turks.cfg.theme || "ff", async (v) => {
+    field("Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways.",
+      select([["ff", "FFVII menu"], ["green", "Box of X"], ["blades", "Blades"]], Turks.cfg.theme || "ff", async (v) => {
         const r = await saveConfig({ theme: v });
         if (r) applyTheme(true);
       })),

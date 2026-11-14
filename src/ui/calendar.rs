@@ -113,6 +113,8 @@ impl App {
                         let green = ff::is_green();
                         let fill = if green {
                             Color32::from_rgba_premultiplied(2, 16, 2, if in_month { 140 } else { 60 })
+                        } else if ff::is_blades() {
+                            Color32::from_rgba_unmultiplied(255, 255, 255, if in_month { 26 } else { 10 })
                         } else {
                             Color32::from_rgba_premultiplied(8, 12, 52, if in_month { 120 } else { 50 })
                         };
