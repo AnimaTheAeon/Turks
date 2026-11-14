@@ -883,7 +883,7 @@ impl App {
         let c = &mut self.cfg;
         let mut ch = false;
         w::section_help(ui, "Look", "");
-        ch |= w::row(ui, "Theme", "FFVII menu: blue windows and the pointing hand. Box of X: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways.", |ui| {
+        ch |= w::row(ui, "Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways.", |ui| {
             let mut changed = false;
             let cur = ff::Theme::from_key(&c.theme);
             egui::ComboBox::from_id_salt("theme").selected_text(cur.label()).show_ui(ui, |ui| {
