@@ -11,6 +11,7 @@ mod green;
 mod images;
 mod movies;
 mod settings;
+mod splash;
 mod system;
 pub mod theme;
 mod widgets;
@@ -101,6 +102,8 @@ pub struct App {
     pub green_unzoom: Option<std::time::Instant>,
     /// Blades theme: slide state between frames.
     pub blades: blades::State,
+    /// The start screen shown over the window at launch.
+    splash: splash::Splash,
 }
 
 impl App {
@@ -154,6 +157,7 @@ impl App {
             green_leave: None,
             green_unzoom: None,
             blades: Default::default(),
+            splash: if start_hidden { splash::Splash::skipped() } else { splash::Splash::default() },
             core,
         }
     }
@@ -556,6 +560,7 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(fill).inner_margin(egui::Margin::same(if ff::is_blades() { 0 } else { 14 })))
             .show(ui, |ui| self.layout(ui));
+        self.splash.overlay(&ctx, false);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

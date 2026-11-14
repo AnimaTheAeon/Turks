@@ -1,4 +1,4 @@
-//! Turks' two looks (see the project doc claude/themes/green-dashboard.md).
+//! Turks' two looks.
 //! Classic JRPG party-menu look: blue gradient windows with beveled silver
 //! borders, drop-shadowed white text, a pointing-hand menu cursor and
 //! gradient stat bars.

@@ -487,7 +487,7 @@ function tagPicker(ids, onchange) {
 // ---------------------------------------------------------------- Blades theme
 // Glossy silver blades; the open one wears its page's color. The page itself
 // (#main) moves into the open blade, so every page works as before.
-// Project doc claude/themes/blades.md (same look as Lifestream's NAS page).
+// Same look as Lifestream's NAS page.
 
 const isBlades = () => !!(Turks.cfg && Turks.cfg.theme === "blades");
 let bstage = null, bcur = 0, bdrag = null;
@@ -919,4 +919,5 @@ Turks.start = async function () {
   if (!Turks.cfg.tmdb_api_key) { go("settings", "general"); applyTheme(true); }
   else if (isGreen()) { Turks.page = "movies"; applyTheme(false); }
   else go("movies");
+  if (window.splashDone) splashDone(isBlades() ? "blades" : isGreen() ? "green" : "ff");
 };
