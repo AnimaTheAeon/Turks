@@ -47,11 +47,11 @@ pub enum Editor {
 }
 
 fn text_row(ui: &mut Ui, label: &str, help: &str, value: &mut String) -> bool {
-    w::row(ui, label, help, |ui| ui.add(egui::TextEdit::singleline(value).desired_width(250.0)).changed())
+    w::row(ui, label, help, |ui| ui.add(egui::TextEdit::singleline(value).margin(crate::ui::theme::input_margin()).desired_width(250.0)).changed())
 }
 
 fn secret_row(ui: &mut Ui, label: &str, help: &str, value: &mut String) -> bool {
-    w::row(ui, label, help, |ui| ui.add(egui::TextEdit::singleline(value).password(true).desired_width(250.0)).changed())
+    w::row(ui, label, help, |ui| ui.add(egui::TextEdit::singleline(value).margin(crate::ui::theme::input_margin()).password(true).desired_width(250.0)).changed())
 }
 
 fn toggle_row(ui: &mut Ui, label: &str, help: &str, value: &mut bool) -> bool {
@@ -231,11 +231,11 @@ impl App {
             changed
         });
         ch |= w::row(ui, "Movie file format", "Tokens: {Movie Title} {Movie CleanTitle} {Release Year} {Quality Full} {Edition Tags} {MediaInfo VideoCodec} {MediaInfo AudioCodec} {MediaInfo VideoDynamicRangeType} {Release Group} {Custom Formats} {ImdbId} {TmdbId}. {Movie.Title} uses dots, {MOVIE TITLE} upper case.", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut c.standard_movie_format).desired_width(360.0)).changed()
+            ui.add(egui::TextEdit::singleline(&mut c.standard_movie_format).margin(crate::ui::theme::input_margin()).desired_width(360.0)).changed()
         });
         ui.label(RichText::new(format!("Example: {}", crate::naming::example(c, false))).color(GOOD()).size(12.0));
         ch |= w::row(ui, "Movie folder format", "Folder for each movie. Add {imdb-{ImdbId}} or {tmdb-{TmdbId}} for Plex/Jellyfin id matching.", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut c.movie_folder_format).desired_width(360.0)).changed()
+            ui.add(egui::TextEdit::singleline(&mut c.movie_folder_format).margin(crate::ui::theme::input_margin()).desired_width(360.0)).changed()
         });
         ui.label(RichText::new(format!("Example: {}", crate::naming::example(c, true))).color(GOOD()).size(12.0));
 
@@ -828,7 +828,7 @@ impl App {
         ch |= toggle_row(ui, "Allow other computers", "Listen on the network, not just this PC. Only turn on if apps on other machines need it.", &mut c.api_bind_all);
         let mut regen = false;
         w::row(ui, "API key", "", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut c.api_key.clone()).desired_width(250.0));
+            ui.add(egui::TextEdit::singleline(&mut c.api_key.clone()).margin(crate::ui::theme::input_margin()).desired_width(250.0));
             if ui.small_button("Copy").clicked() {
                 let _ = arboard::Clipboard::new().and_then(|mut cb| cb.set_text(c.api_key.clone()));
             }
@@ -870,7 +870,7 @@ impl App {
                         changed = true;
                     }
                 }
-                changed |= ui.add(egui::TextEdit::singleline(&mut c.ffprobe_path).desired_width(200.0)).changed();
+                changed |= ui.add(egui::TextEdit::singleline(&mut c.ffprobe_path).margin(crate::ui::theme::input_margin()).desired_width(200.0)).changed();
                 changed
             });
         }
@@ -1141,7 +1141,7 @@ impl App {
                                         *path = p.display().to_string();
                                     }
                                 }
-                                ui.add(egui::TextEdit::singleline(path).desired_width(200.0));
+                                ui.add(egui::TextEdit::singleline(path).margin(crate::ui::theme::input_margin()).desired_width(200.0));
                             });
                             text_row(ui, "Arguments", "", arguments);
                         }
@@ -1338,7 +1338,7 @@ impl App {
                         ui.group(|ui| {
                             ui.horizontal(|ui| {
                                 ff::tag(ui, s.kind.label(), LABEL());
-                                ui.add(egui::TextEdit::singleline(&mut s.name).hint_text("name").desired_width(140.0));
+                                ui.add(egui::TextEdit::singleline(&mut s.name).margin(crate::ui::theme::input_margin()).hint_text("name").desired_width(140.0));
                                 ui.checkbox(&mut s.negate, "Negate");
                                 ui.checkbox(&mut s.required, "Required");
                                 if ui.small_button(RichText::new("×").color(BAD())).clicked() {
@@ -1347,7 +1347,7 @@ impl App {
                             });
                             match &mut s.kind {
                                 CfKind::ReleaseTitle { pattern } | CfKind::ReleaseGroup { pattern } | CfKind::Edition { pattern } => {
-                                    ui.add(egui::TextEdit::singleline(pattern).hint_text("regular expression").desired_width(480.0).font(egui::TextStyle::Monospace));
+                                    ui.add(egui::TextEdit::singleline(pattern).margin(crate::ui::theme::input_margin()).hint_text("regular expression").desired_width(480.0).font(egui::TextStyle::Monospace));
                                     if !pattern.is_empty() && fancy_regex::Regex::new(pattern).is_err() {
                                         ui.label(RichText::new("That regex doesn't compile.").color(BAD()).size(12.0));
                                     }
@@ -1429,7 +1429,7 @@ impl App {
                 common::heading(ui, "Import custom formats");
                 ui.label(common::dim_text("Paste JSON from the TRaSH Guides or a Radarr export: one format or a list of them."));
                 egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
-                    ui.add(egui::TextEdit::multiline(text).desired_width(600.0).desired_rows(14).font(egui::TextStyle::Monospace));
+                    ui.add(egui::TextEdit::multiline(text).margin(crate::ui::theme::input_margin()).desired_width(600.0).desired_rows(14).font(egui::TextStyle::Monospace));
                 });
                 if let Some(e) = error {
                     ui.label(RichText::new(e.as_str()).color(BAD()));

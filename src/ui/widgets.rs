@@ -182,7 +182,7 @@ pub fn folder_field(ui: &mut Ui, value: &mut String, width: f32) -> bool {
             changed = true;
         }
     }
-    changed |= ui.add(egui::TextEdit::singleline(value).desired_width(width)).changed();
+    changed |= ui.add(egui::TextEdit::singleline(value).margin(crate::ui::theme::input_margin()).desired_width(width)).changed();
     changed
 }
 
