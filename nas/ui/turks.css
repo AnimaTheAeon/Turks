@@ -583,7 +583,7 @@ body.calm .bpanel::before { animation: none; }
 .bbody select option { color: #26203a; }
 .bbody .scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .45); border-radius: 6px; }
 .bbody a { color: #ffffff; }
-.bbody { padding-left: 26px; }
+.bbody { padding-left: 30px; }
 .bbody .menu-item, .bbody .sub-item { padding: 6px 16px; margin-bottom: 6px; color: #ffffff; font-size: 16px; }
 .bbody .hand { display: none !important; }
 .bbody .sub-item.selected, .bbody .menu-item.selected { background: linear-gradient(180deg, rgba(255, 255, 255, .36) 0%, rgba(255, 255, 255, .16) 48%, rgba(255, 255, 255, .08) 52%, rgba(255, 255, 255, .2) 100%); border-color: rgba(255, 255, 255, .7); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75), 0 0 12px rgba(255, 255, 255, .22); }
