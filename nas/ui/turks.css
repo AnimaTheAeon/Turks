@@ -597,3 +597,30 @@ body.blades .toast { background: rgba(28, 24, 40, .92); border: 1px solid rgba(2
   .bpanel::before { display: none; } .blabel { font-size: 18px; }
   .btab::after { width: 26px; left: calc((var(--p) + 2px) / 2 - 13px); border-radius: 13px; }
 }
+
+/* ---- Update progress (all three themes) */
+.upd { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .5); opacity: 0; transition: opacity .6s ease; }
+.upd[hidden] { display: none; }
+.upd.on { opacity: 1; }
+.upd .updcard { width: min(520px, calc(100vw - 40px)); padding: 22px 26px 20px; }
+.updtitle { font-size: 22px; font-weight: 800; margin-bottom: 14px; }
+.updbar { position: relative; height: 14px; border-radius: 7px; background: #080c34; border: 1px solid var(--border-dark); overflow: hidden; }
+.updbar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 7px; background: linear-gradient(90deg, #1e6ee6, #8ce6ff); transition: width .8s ease; }
+.updbar i::after { content: ""; position: absolute; inset: 0 0 50% 0; border-radius: 7px 7px 0 0; background: rgba(255, 255, 255, .22); }
+.updline { display: flex; gap: 12px; margin-top: 10px; font-size: 14px; }
+.updline .updpct { margin-left: auto; font-weight: 800; }
+.updnote { margin-top: 8px; font-size: 13px; color: var(--dim); }
+.updnote:empty { display: none; }
+.upd.bad .updtitle { color: var(--bad); }
+.upd button { margin-top: 14px; }
+body.green .updtitle { font-family: Orbitron, Nunito, sans-serif; text-transform: uppercase; font-size: 18px; }
+body.green .updbar { background: #000e00; border-color: #0c3406; border-radius: 0; }
+body.green .updbar i { border-radius: 0; background: linear-gradient(90deg, #4fb51a, #e2ff6a); }
+body.green .updbar i::after { border-radius: 0; }
+body.blades .upd { background: rgba(40, 40, 48, .28); }
+body.blades .upd .updcard { background: rgba(28, 24, 40, .92); border: 1px solid rgba(255, 255, 255, .55); border-radius: 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .25); color: #ffffff; }
+body.blades .updbar { height: 16px; border-radius: 8px; background: rgba(0, 0, 0, .3); border: 1px solid rgba(255, 255, 255, .35); }
+body.blades .updbar i { border-radius: 8px; background: linear-gradient(90deg, rgba(255, 255, 255, .75), #ffffff); box-shadow: 0 0 10px rgba(255, 255, 255, .35); }
+body.blades .updbar i::after { border-radius: 8px 8px 0 0; background: rgba(255, 255, 255, .45); }
+body.blades .updnote { color: rgba(255, 255, 255, .78); }
+body.blades .upd.bad .updtitle { color: #ffb4a8; }

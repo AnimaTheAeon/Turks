@@ -29,6 +29,7 @@ pub struct Release {
     pub spk_url: String,
     pub spk_name: String,
     pub sha256: Option<String>,
+    pub spk_size: u64,
 }
 
 /// What the background check last saw.
@@ -122,6 +123,7 @@ pub fn parse_release(json: &Value) -> Result<Release, String> {
             .as_str()
             .and_then(|d| d.strip_prefix("sha256:"))
             .map(|d| d.to_ascii_lowercase()),
+        spk_size: asset["size"].as_u64().unwrap_or(0),
     })
 }
 
@@ -207,6 +209,7 @@ pub fn status_json() -> Value {
         "error": s.error,
         "now": now(),
         "last_install": last_install(),
+        "progress": progress(),
         "command": command_line(),
     })
 }
@@ -302,13 +305,72 @@ fn install(release: &Release) -> Result<(), String> {
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let result = download_and_install(release, &dir);
     let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_file(progress_path());
     result
+}
+
+// ---------- progress, for the page's progress bar ----------
+
+fn progress_path() -> PathBuf {
+    var_dir().join("update_progress.json")
+}
+
+/// Written by the root task as it goes: phase is "download", "verify" or "install".
+fn write_progress(phase: &str, done: u64, total: u64, to: &str) {
+    let value = json!({ "phase": phase, "done": done, "total": total, "to": to, "time": now() });
+    let path = progress_path();
+    let tmp = path.with_extension("tmp");
+    if std::fs::write(&tmp, value.to_string()).is_ok() {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o644));
+        let _ = std::fs::rename(&tmp, &path);
+    }
+}
+
+/// The running update, if the root task is installing one right now.
+fn progress() -> Option<Value> {
+    let bytes = std::fs::read(progress_path()).ok()?;
+    let value: Value = serde_json::from_slice(&bytes).ok()?;
+    // A task that died leaves its file behind; ignore it after 15 minutes.
+    (now().saturating_sub(value["time"].as_u64().unwrap_or(0)) < 900).then_some(value)
+}
+
+/// curl into `out`, reporting the size so far every half second.
+fn download_with_progress(release: &Release, out: &Path) -> Result<(), String> {
+    let out_str = out.to_string_lossy().to_string();
+    let mut child = Command::new("curl")
+        .args(["-fsSL", "--retry", "2", "--connect-timeout", "20", "-A", "Turks-NAS", "--max-time", "600", "-o", &out_str, &release.spk_url])
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Couldn't run curl: {e}"))?;
+    loop {
+        let done = std::fs::metadata(out).map(|m| m.len()).unwrap_or(0);
+        write_progress("download", done, release.spk_size, &release.version);
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if status.success() {
+                    return Ok(());
+                }
+                let mut err = String::new();
+                if let Some(mut e) = child.stderr.take() {
+                    use std::io::Read;
+                    let _ = e.read_to_string(&mut err);
+                }
+                let err = err.trim().to_string();
+                return Err(if err.is_empty() { "Couldn't reach GitHub".into() } else { err });
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(500)),
+            Err(e) => return Err(e.to_string()),
+        }
+    }
 }
 
 fn download_and_install(release: &Release, dir: &Path) -> Result<(), String> {
     let spk = dir.join(&release.spk_name);
     let spk_str = spk.to_string_lossy().to_string();
-    curl(&["--max-time", "600", "-o", &spk_str, &release.spk_url]).map_err(|e| format!("Download failed: {e}"))?;
+    download_with_progress(release, &spk).map_err(|e| format!("Download failed: {e}"))?;
+    let size = std::fs::metadata(&spk).map(|m| m.len()).unwrap_or(0);
+    write_progress("verify", size, size, &release.version);
     if let Some(expected) = &release.sha256 {
         let actual = sha256_file(&spk)?;
         if &actual != expected {
@@ -319,6 +381,8 @@ fn download_and_install(release: &Release, dir: &Path) -> Result<(), String> {
         let out = String::from_utf8_lossy(&o.stdout).to_lowercase();
         o.status.success() && !out.contains("not")
     });
+    // Turks stops while DSM installs; the page shows this step until it's back.
+    write_progress("install", size, size, &release.version);
     let output = Command::new(SYNOPKG)
         .args(["install", &spk_str])
         .output()

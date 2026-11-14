@@ -296,6 +296,60 @@ function startPolling() {
   Turks.pollTimer = setInterval(() => { if (!document.hidden) poll(); }, 3000);
 }
 
+
+// ---------------------------------------------------------------- update progress
+// The DSM task that installs updates writes its progress; this shows it as a
+// bar from the download until the new version answers.
+const UPD = { target: null, restartAt: 0, finished: false, seenAt: 0, failed: false };
+function updShow(title, frac, step, note, bad) {
+  const box = $("#upd");
+  box.querySelector(".updtitle").textContent = title;
+  box.querySelector(".updbar i").style.width = (Math.max(0, Math.min(1, frac)) * 100).toFixed(1) + "%";
+  box.querySelector(".updstep").textContent = step;
+  box.querySelector(".updpct").textContent = bad ? "" : Math.round(frac * 100) + "%";
+  box.querySelector(".updnote").textContent = note || "";
+  box.classList.toggle("bad", !!bad);
+  box.querySelector(".updact").replaceChildren(bad ? el("button", { onclick: () => { UPD.target = null; UPD.failed = false; updHide(); } }, "OK") : "");
+  if (box.hidden) { box.hidden = false; requestAnimationFrame(() => box.classList.add("on")); }
+}
+function updHide() { const box = $("#upd"); box.classList.remove("on"); setTimeout(() => { if (!box.classList.contains("on")) box.hidden = true; }, 600); }
+async function updWatch() {
+  if (UPD.finished) return;
+  let u = null;
+  try { u = await api("update"); } catch (e) { u = null; }
+  const p = u && u.progress;
+  if (p && p.to && UPD.target !== p.to) { UPD.target = p.to; UPD.restartAt = 0; UPD.failed = false; }
+  if (p) UPD.seenAt = Date.now();
+  if (!UPD.target || UPD.failed) return;
+  const title = `Updating Turks to ${UPD.target}`;
+  if (u && u.current === UPD.target) {
+    UPD.finished = true;
+    try { sessionStorage.setItem("turks-updated", UPD.target); } catch (e) { /* private mode */ }
+    updShow(`Turks ${UPD.target} is installed`, 1, "Done", "Reloading the page…");
+    setTimeout(() => location.reload(), 1800);
+    return;
+  }
+  if (!u || (p && p.phase === "install")) {
+    if (!UPD.restartAt) UPD.restartAt = Date.now();
+    const t = (Date.now() - UPD.restartAt) / 1000;
+    updShow(title, 0.8 + 0.17 * (1 - Math.exp(-t / 30)), "Step 3 of 3 · Installing",
+      t > 240 ? "It's taking longer than usual. If Turks doesn't come back, check Package Center." : "DSM is installing the new package; Turks restarts. This page reloads by itself when it's back.");
+  } else if (p && p.phase === "verify") {
+    updShow(title, 0.74, "Step 2 of 3 · Checking the download", "");
+  } else if (p) {
+    const f = p.total ? Math.min(1, p.done / p.total) : 0;
+    updShow(title, 0.02 + 0.68 * f, p.total ? `Step 1 of 3 · Downloading ${(p.done / 1048576).toFixed(1)} of ${(p.total / 1048576).toFixed(1)} MB` : "Step 1 of 3 · Downloading", "Turks keeps running while it downloads.");
+  } else if (u.last_install && !u.last_install.ok && u.last_install.to === UPD.target) {
+    UPD.failed = true;
+    updShow("The update didn't work", 0, "", u.last_install.message + " Turks keeps running the version you have.", true);
+  } else if (Date.now() - UPD.seenAt > 10000) { UPD.target = null; updHide(); }
+}
+function startUpdateWatch() {
+  try { const v = sessionStorage.getItem("turks-updated"); if (v) { sessionStorage.removeItem("turks-updated"); setTimeout(() => toast(`Turks updated to ${v}.`), 800); } } catch (e) { /* private mode */ }
+  updWatch();
+  setInterval(() => { if (!document.hidden || UPD.target) updWatch(); }, 2500);
+}
+
 // ---------------------------------------------------------------- modals
 
 let modalStack = [];
@@ -504,15 +558,15 @@ function bladesContour(stage, bodySel, panelSel) {
       const rows = [];
       [...open.children].forEach((c) => pick(c, rows));
       for (const el of rows) {
-        el.style.translate = "";
+        shiftRow(el, 0);
         const er = el.getBoundingClientRect();
         const top = Math.max(er.top, br.top), bot = Math.min(er.bottom, br.bottom);
         if (bot <= top) continue;
         const dx = Math.round(Math.max(arc(top), arc(bot)));
-        if (dx > 0) { el.style.translate = `${dx}px 0`; next.add(el); }
+        if (dx > 0) { shiftRow(el, dx); next.add(el); }
       }
     }
-    shifted.forEach((el) => { if (!next.has(el)) el.style.translate = ""; });
+    shifted.forEach((el) => { if (!next.has(el)) shiftRow(el, 0); });
     shifted = next;
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(run); } };
@@ -529,10 +583,17 @@ function bladesContour(stage, bodySel, panelSel) {
       stage.removeEventListener("scroll", queue, true);
       removeEventListener("resize", queue);
       stage.removeEventListener("transitionend", queue);
-      shifted.forEach((el) => { el.style.translate = ""; });
+      shifted.forEach((el) => { shiftRow(el, 0); });
       shifted.clear();
     },
   };
+}
+
+// Moves a row right by dx and narrows it by the same amount, so its right
+// end stays where it was instead of running past the blade's edge.
+function shiftRow(el, dx) {
+  el.style.translate = dx ? `${dx}px 0` : "";
+  el.style.maxWidth = dx ? `calc(100% - ${dx}px)` : "";
 }
 
 let bcontour = null;
@@ -848,6 +909,7 @@ Turks.start = async function () {
   }
   await poll();
   startPolling();
+  startUpdateWatch();
   setInterval(() => { if (Turks.state) { Turks.state.uptime_secs++; $("#i-time").textContent = clock(Turks.state.uptime_secs); } }, 1000);
   $("#gback").onclick = () => stepBack();
   $("#genter").onclick = () => openFromHome(MENU[Turks.cursor][0]);
