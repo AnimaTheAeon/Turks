@@ -481,6 +481,7 @@ async function updatePanel(box) {
       u.available && u.can_install_now ? el("button.small.primary", { disabled: !!u.installing, onclick: async () => { await act("update/install", {}); } }, "Update now") : null,
       el("button.small", { onclick: async () => { await act("update/check", {}); setTimeout(() => updatePanel(box), 4000); } }, "Check now")),
     el("div.dim.small", u.checked_at ? "Checked " + ago(u.checked_at) : ""),
+    u.can_install_now && !u.window_updates ? el("div.dim.small", "Update now can't replace this window's own screens on this NAS, so a release that changes how it looks also needs the .spk installed (Package Center → Manual Install, or the scheduled task).") : null,
     last && last.time ? el("div.small." + (last.ok ? "good" : "bad"), `Last automatic run ${ago(last.time)}: ${last.message}`) : null,
     el("div.notice", el("b", "Optional: update while you're away. "), "Update now works by itself. To also have DSM install new versions when you haven't opened Turks for a while (this also refreshes the window you're looking at), add a scheduled task:",
       el("ol",

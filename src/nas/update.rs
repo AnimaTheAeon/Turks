@@ -219,6 +219,7 @@ pub fn status_json() -> Value {
         "progress": progress(),
         "command": command_line(),
         "can_install_now": can_install_now(),
+        "window_updates": std::env::var("TURKS_WINDOW_UPDATES").is_ok(),
         "installing": INSTALLING.load(Ordering::SeqCst),
     })
 }
