@@ -80,6 +80,10 @@ fn daemon(restarted: bool) {
 
 /// Start a fresh copy of the service and exit this one (after a restore).
 pub fn restart() {
+    if update::can_install_now() {
+        // turks-run.sh keeps the service running and starts it again.
+        std::process::exit(update::RESTART_CODE);
+    }
     if let Ok(exe) = std::env::current_exe() {
         let _ = std::process::Command::new(exe)
             .args(["daemon", "--restarted"])
@@ -103,6 +107,13 @@ fn stop_on_signal(core: core::Core) {
         libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
     }
     std::thread::spawn(move || loop {
+        if update::restart_requested() {
+            // An update is unpacked: stop cleanly; turks-run.sh swaps it in.
+            applog::info("Turks restarting to finish the update");
+            core.shutdown();
+            let _ = std::fs::remove_file(var_dir().join("turks.pid"));
+            std::process::exit(update::RESTART_CODE);
+        }
         if STOP.load(std::sync::atomic::Ordering::SeqCst) {
             applog::info("Turks stopping");
             core.shutdown();

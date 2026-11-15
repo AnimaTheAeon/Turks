@@ -522,6 +522,11 @@ fn route_request(core: &Core, post: bool, route: &str, q: &HashMap<String, Strin
         #[cfg(feature = "nas")]
         (false, "update") => ok(crate::nas::update::status_json()),
         #[cfg(feature = "nas")]
+        (true, "update/install") => {
+            crate::nas::update::start_install()?;
+            ok(crate::nas::update::status_json())
+        }
+        #[cfg(feature = "nas")]
         (true, "update/check") => {
             crate::nas::update::request_check();
             ok(crate::nas::update::status_json())

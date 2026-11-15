@@ -455,7 +455,7 @@ async function sGeneral(body, advanced) {
       cNum("backup_retention_days", "Retention", "Automatic backups older than this are deleted.", "days", 1, 90),
     ] : []),
     ...head("Updates", "New versions come from GitHub."),
-    cToggle("auto_update", "Install updates automatically", "Needs the one-time Task Scheduler setup below."),
+    cToggle("auto_update", "Install updates automatically", "Needs the optional Task Scheduler task below."),
     update,
     ...(advanced ? [
       ...head("Other"),
@@ -478,16 +478,17 @@ async function updatePanel(box) {
       u.checking ? el("span.spin") : null, u.error ? el("span.bad.small", u.error) : null,
       el("span.grow"),
       u.page ? el("a.small", { href: u.page, target: "_blank" }, "Release notes") : null,
+      u.available && u.can_install_now ? el("button.small.primary", { disabled: !!u.installing, onclick: async () => { await act("update/install", {}); } }, "Update now") : null,
       el("button.small", { onclick: async () => { await act("update/check", {}); setTimeout(() => updatePanel(box), 4000); } }, "Check now")),
     el("div.dim.small", u.checked_at ? "Checked " + ago(u.checked_at) : ""),
     last && last.time ? el("div.small." + (last.ok ? "good" : "bad"), `Last automatic run ${ago(last.time)}: ${last.message}`) : null,
-    el("div.notice", el("b", "One-time setup. "), "DSM only lets packages install updates through a scheduled task:",
+    el("div.notice", el("b", "Optional: update while you're away. "), "Update now works by itself. To also have DSM install new versions when you haven't opened Turks for a while (this also refreshes the window you're looking at), add a scheduled task:",
       el("ol",
         el("li", el("b", "Control Panel"), " → ", el("b", "Task Scheduler"), " → ", el("b", "Create"), " → ", el("b", "Scheduled Task"), " → ", el("b", "User-defined script")),
         el("li", el("b", "General:"), " name it ", el("i", "Turks update"), ", set ", el("b", "User"), " to ", el("b", "root")),
         el("li", el("b", "Schedule:"), " Daily, at a quiet time such as 4:25"),
         el("li", el("b", "Task Settings"), " → ", el("b", "Run command"), ", paste:", el("input.command", { type: "text", readonly: true, value: u.command, onclick: (e) => e.target.select() })),
-        el("li", "Click ", el("b", "OK"), ". To update right now, select the task and click ", el("b", "Run"), "."))),
+        el("li", "Click ", el("b", "OK"), "."))),
   );
 }
 

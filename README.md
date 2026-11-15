@@ -103,9 +103,10 @@ from GitHub Releases.
 3. Open Turks from the main menu and follow the steps above. Folder pickers show your shared folders.
 4. Download Station works as a download client, as does Lifestream on a PC or Transmission/qBittorrent
    in Docker (add a remote path mapping if the paths differ).
-5. **Updates**: Turks checks GitHub twice a day. DSM only lets packages install updates as root, so
-   create one Task Scheduler task (User: root, daily) that runs
-   `/var/packages/Turks/target/bin/turks update`. Settings › General › Updates shows the exact steps.
+5. **Updates**: Turks checks GitHub twice a day. **Update now** (Settings › General › Updates) downloads,
+   checks and installs the new version with no setup. Optionally, add a Task Scheduler task (User: root,
+   daily) that runs `/var/packages/Turks/target/bin/turks update`; DSM then also installs updates when you
+   haven't opened Turks for a while and refreshes the window itself.
 
 The Radarr-compatible API listens on port 7878 on the network by default on a NAS, so Overseerr,
 Jellyseerr and Prowlarr can connect with the API key from Settings › General.

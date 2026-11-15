@@ -298,7 +298,7 @@ function startPolling() {
 
 
 // ---------------------------------------------------------------- update progress
-// The DSM task that installs updates writes its progress; this shows it as a
+// The update (Update now, or the DSM task) writes its progress; this shows it as a
 // bar from the download until the new version answers.
 const UPD = { target: null, restartAt: 0, finished: false, seenAt: 0, failed: false };
 function updShow(title, frac, step, note, bad) {
@@ -333,7 +333,7 @@ async function updWatch() {
     if (!UPD.restartAt) UPD.restartAt = Date.now();
     const t = (Date.now() - UPD.restartAt) / 1000;
     updShow(title, 0.8 + 0.17 * (1 - Math.exp(-t / 30)), "Step 3 of 3 · Installing",
-      t > 240 ? "It's taking longer than usual. If Turks doesn't come back, check Package Center." : "DSM is installing the new package; Turks restarts. This page reloads by itself when it's back.");
+      t > 240 ? "It's taking longer than usual. If Turks doesn't come back, check Package Center." : "Turks is restarting on the new version. This page reloads by itself when it's back.");
   } else if (p && p.phase === "verify") {
     updShow(title, 0.74, "Step 2 of 3 · Checking the download", "");
   } else if (p) {
