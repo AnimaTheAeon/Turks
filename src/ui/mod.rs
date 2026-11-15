@@ -110,7 +110,6 @@ impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, core: Core, incoming: Receiver<Incoming>, start_hidden: bool, startup_notice: Option<String>) -> Self {
         configure_fonts(&cc.egui_ctx);
         ff::set_theme(ff::Theme::from_key(&core.cfg().theme));
-        widgets::init_icons(&cc.egui_ctx);
         ff::apply_style(&cc.egui_ctx);
         let repaint_ctx = cc.egui_ctx.clone();
         core.set_repaint(move || repaint_ctx.request_repaint());
