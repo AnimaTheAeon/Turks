@@ -61,7 +61,6 @@ impl App {
 
         self.show_dialog(&ctx);
         self.first_run_wizard(&ctx);
-        self.update_prompt(&ctx);
         self.toasts(&ctx, pos2(f.body.right() - 14.0, f.body.top() + 14.0));
     }
 }

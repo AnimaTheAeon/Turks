@@ -356,7 +356,6 @@ impl App {
         let ctx = ui.ctx().clone();
         self.show_dialog(&ctx);
         self.first_run_wizard(&ctx);
-        self.update_prompt(&ctx);
         self.toasts(&ctx, pos2(main.right() - 14.0, main.top() + 14.0));
     }
 
@@ -559,6 +558,9 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(fill).inner_margin(egui::Margin::same(if ff::is_blades() { 0 } else { 14 })))
             .show(ui, |ui| self.layout(ui));
+        // Drawn here, once, for every look, so no look can leave the
+        // Update button doing nothing.
+        self.update_prompt(&ctx);
         self.splash.overlay(&ctx, false);
     }
 
