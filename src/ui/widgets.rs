@@ -9,20 +9,34 @@ use super::theme::{self as ff, BAD, GOOD, LABEL, TEXT, TEXT_DIM, WARN};
 /// color so it sits quietly next to its label. It brightens a little while
 /// hovered; hover it to read what a setting does.
 pub fn help_icon(ui: &mut Ui, help: &str) -> egui::Response {
-    let d = 14.0;
-    let (rect, r) = ui.allocate_exact_size(egui::vec2(d, d), egui::Sense::hover());
+    // A small, quiet mark; the "?" is drawn as lines so it sits exactly in the middle.
+    let d = 7.0;
+    let (slot, r) = ui.allocate_exact_size(egui::vec2(d + 2.0, ui.spacing().interact_size.y.min(18.0)), egui::Sense::hover());
     let lift = ui.ctx().animate_bool_with_time(r.id, r.hovered(), 0.25);
     let base = if ff::is_blades() { Color32::WHITE } else { TEXT_DIM() };
-    let alpha = (if ff::is_blades() { 95.0 } else { 120.0 } + 110.0 * lift) as u8;
+    let alpha = (if ff::is_blades() { 110.0 } else { 130.0 } + 100.0 * lift) as u8;
     let color = Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), alpha);
     let painter = ui.painter();
-    let c = rect.center();
+    let c = slot.center();
+    let rect = egui::Rect::from_center_size(c, egui::vec2(d, d));
+    let line = egui::Stroke::new(0.8, color);
     if ff::is_green() {
-        painter.rect_stroke(rect.shrink(1.5), 0.0, egui::Stroke::new(1.0, color), egui::StrokeKind::Inside);
+        painter.rect_stroke(rect.shrink(0.5), 0.0, line, egui::StrokeKind::Inside);
     } else {
-        painter.circle_stroke(c, d / 2.0 - 1.0, egui::Stroke::new(1.0, color));
+        painter.circle_stroke(c, d / 2.0 - 0.5, line);
     }
-    painter.text(c + egui::vec2(0.0, 0.5), egui::Align2::CENTER_CENTER, "?", egui::FontId::proportional(10.0), color);
+    // "?": a hook from the upper left round to the right, a short stem, and a dot.
+    let hook_c = c + egui::vec2(0.0, -0.8);
+    let hr = 1.1;
+    let mut pts: Vec<egui::Pos2> = (0..=10)
+        .map(|i| {
+            let t = (200.0_f32 + 230.0 * i as f32 / 10.0).to_radians();
+            hook_c + egui::vec2(hr * t.cos(), hr * t.sin())
+        })
+        .collect();
+    pts.push(c + egui::vec2(0.0, 0.85));
+    painter.add(egui::Shape::line(pts, line));
+    painter.circle_filled(c + egui::vec2(0.0, 1.95), 0.5, color);
     if r.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
     }
