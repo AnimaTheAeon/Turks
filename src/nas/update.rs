@@ -447,10 +447,18 @@ fn write_progress(phase: &str, done: u64, total: u64, to: &str) {
     }
 }
 
-/// The running update, if the root task is installing one right now.
+/// The running update, if one is being installed right now.
 fn progress() -> Option<Value> {
     let bytes = std::fs::read(progress_path()).ok()?;
     let value: Value = serde_json::from_slice(&bytes).ok()?;
+    // Already running the version it was installing: the update is done.
+    // (Update now writes "install" just before the restart, and the new
+    // version is the first to see it.)
+    let to = value["to"].as_str().unwrap_or("");
+    if !to.is_empty() && !is_newer(to, current_version()) {
+        let _ = std::fs::remove_file(progress_path());
+        return None;
+    }
     // A task that died leaves its file behind; ignore it after 15 minutes.
     (now().saturating_sub(value["time"].as_u64().unwrap_or(0)) < 900).then_some(value)
 }

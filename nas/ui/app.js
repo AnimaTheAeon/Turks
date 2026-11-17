@@ -324,6 +324,12 @@ async function updWatch() {
   const title = `Updating Turks to ${UPD.target}`;
   if (u && u.current === UPD.target) {
     UPD.finished = true;
+    // This page already shows the new version (it loaded after the
+    // restart): say so once, never reload again.
+    if (UPD.loadedVersion === UPD.target || UPD.reloadedFor === UPD.target) {
+      updHide();
+      return;
+    }
     try { sessionStorage.setItem("turks-updated", UPD.target); } catch (e) { /* private mode */ }
     updShow(`Turks ${UPD.target} is installed`, 1, "Done", "Reloading the page…");
     setTimeout(() => location.reload(), 1800);
@@ -344,8 +350,11 @@ async function updWatch() {
     updShow("The update didn't work", 0, "", u.last_install.message + " Turks keeps running the version you have.", true);
   } else if (Date.now() - UPD.seenAt > 10000) { UPD.target = null; updHide(); }
 }
-function startUpdateWatch() {
-  try { const v = sessionStorage.getItem("turks-updated"); if (v) { sessionStorage.removeItem("turks-updated"); setTimeout(() => toast(`Turks updated to ${v}.`), 800); } } catch (e) { /* private mode */ }
+async function startUpdateWatch() {
+  try { const v = sessionStorage.getItem("turks-updated"); if (v) { sessionStorage.removeItem("turks-updated"); UPD.reloadedFor = v; setTimeout(() => toast(`Turks updated to ${v}.`), 800); } } catch (e) { /* private mode */ }
+  // The version this page was loaded with, so an update that's already in
+  // place never triggers a reload.
+  try { UPD.loadedVersion = (await api("update")).current || null; } catch (e) { UPD.loadedVersion = null; }
   updWatch();
   setInterval(() => { if (!document.hidden || UPD.target) updWatch(); }, 2500);
 }
