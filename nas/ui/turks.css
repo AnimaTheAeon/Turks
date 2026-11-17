@@ -317,7 +317,7 @@ input.command { width: 100%; margin-top: 4px; font: 12px/1.3 ui-monospace, Menlo
    ===================================================================== */
 @font-face { font-family: "Orbitron"; font-weight: 800; src: url("fonts/orbitron-800.woff2") format("woff2"); }
 
-.ghome, #gbar, #gback, #gbg { display: none; }
+.ghome, #gbar, #gback, #gbg, #gfoot { display: none; }
 
 body.green {
   --text: #e4ffc4; --dim: #a6dc80; --label: #c8ff4a; --head: #dcff64;
@@ -410,7 +410,16 @@ body.green .sub-item .hand { display: none; }
 body.green .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: 58px minmax(0, 1fr) 46px; padding: 14px 16px; }
 body.green .side, body.green #statusbar { display: none; }
 body.green #gbar { display: flex; gap: 20px; align-items: stretch; }
-body.green #gback { display: flex; justify-self: end; }
+body.green #gfoot { display: flex; gap: 14px; align-items: center; min-width: 0; }
+body.green #gback { display: flex; flex: none; }
+/* Page bar: one tab per menu page, along the bottom (never on the home screen). */
+#gtabs { display: flex; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.gnav { position: relative; isolation: isolate; border: 0; padding: 7px 16px; min-width: 110px; font: 800 12px "Orbitron", sans-serif; text-transform: uppercase; color: #bef27e; background: rgba(150, 240, 70, .5) !important; text-shadow: none; cursor: pointer; clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); }
+.gnav::before { content: ""; position: absolute; inset: 1px; z-index: -1; background: linear-gradient(#24700e, #0c3406); clip-path: polygon(8.5px 0, 100% 0, 100% calc(100% - 8.5px), calc(100% - 8.5px) 100%, 0 100%, 0 8.5px); }
+.gnav:hover, .gnav:focus-visible { color: #e6ffb4; background: rgba(170, 255, 90, .85) !important; outline: none; }
+.gnav[aria-current="page"] { color: var(--on-accent); background: #f2ff9a !important; }
+.gnav[aria-current="page"]::before { background: linear-gradient(#e2ff6a, #8cc81c); }
+@media (max-width: 820px) { #gtabs { flex-wrap: nowrap; gap: 5px; overflow-x: auto; } .gnav { min-width: 0; padding: 7px 9px; font-size: 10.5px; flex: none; } }
 body.green.ghome-on .layout { display: none; }
 body.green.ghome-on .ghome { display: block; }
 
@@ -501,8 +510,8 @@ body.green.ghome-on .ghome { display: block; }
 .ghome .gstatus { position: absolute; left: 22px; bottom: 22px; width: min(600px, 46vw); }
 .ghome .ghint { position: absolute; bottom: 26px; }
 
-/* Box of X: the lime glow the orb zoom flares into (see openFromHome / zoomHome). */
-#gzoom { position: fixed; inset: 0; background: #aaec3c; opacity: 0; pointer-events: none; z-index: 9999; }
+/* Xbox: the dark veil pages fade through (see openFromHome / zoomHome / switchPage). */
+#gzoom { position: fixed; inset: 0; background: rgb(3, 18, 3); opacity: 0; pointer-events: none; z-index: 9999; }
 
 
 /* =====================================================================

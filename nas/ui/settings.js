@@ -517,10 +517,14 @@ async function sUi(body, advanced) {
     field("Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Liquid Glass: dark frosted glass with the menu on the left.",
       select([["ff", "FFVII Menu"], ["green", "Xbox"], ["blades", "Blades"], ["glass", "Liquid Glass"]], Turks.cfg.theme || "ff", async (v) => {
         // Like Jenova: switch the look right away, then save it.
+        Turks.pendingTheme = v;
         Turks.cfg.theme = v;
         try { localStorage.setItem("turks-theme", v); } catch (e) {}
         applyTheme(true);
         const r = await saveConfig({ theme: v });
+        if (Turks.pendingTheme === v) Turks.pendingTheme = null;
+        // Picked another theme while this one was saving: keep showing the newer one.
+        else if (Turks.pendingTheme) Turks.cfg.theme = Turks.pendingTheme;
         if (!r) toast("Couldn't save the theme. It's on for now, but Turks will open in the old one next time. Try again in a moment.", true);
       })),
     ...(advanced ? uiDates() : []));

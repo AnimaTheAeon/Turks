@@ -27,7 +27,6 @@ pub struct Asset {
 pub struct Release {
     pub version: String,
     pub notes: String,
-    pub page_url: String,
     pub installer: Option<Asset>,
     pub portable: Option<Asset>,
 }
@@ -150,7 +149,6 @@ pub fn parse_release(json: &serde_json::Value) -> Option<Release> {
     Some(Release {
         version,
         notes: text("body"),
-        page_url: text("html_url"),
         installer: assets.iter().find(|a| {
             let n = lower(a);
             n.starts_with("turks-setup") && n.ends_with(".exe")

@@ -133,12 +133,24 @@ async function loadList(kind, force) {
 async function loadLists(kinds, force) { await Promise.all(kinds.map((k) => loadList(k, force))); }
 function invalidate(...kinds) { kinds.forEach((k) => delete Turks.lists[k]); }
 
-async function loadConfig() { Turks.cfg = await api("config"); return Turks.cfg; }
+// Counts finished saves, so a read that was already on its way can't undo one.
+let cfgSaves = 0;
+async function loadConfig() {
+  const savesBefore = cfgSaves;
+  const cfg = await api("config");
+  // A save finished while this was loading; its answer is newer than this one.
+  if (cfgSaves !== savesBefore && Turks.cfg) return Turks.cfg;
+  // A theme just picked may not be saved yet; don't let a reload undo it.
+  if (Turks.pendingTheme) cfg.theme = Turks.pendingTheme;
+  Turks.cfg = cfg;
+  return Turks.cfg;
+}
 
 /** Save some settings; keeps Turks.cfg current. */
 async function saveConfig(patch) {
   const r = await act("config", patch);
   if (r) {
+    cfgSaves++;
     Turks.cfg = r.config;
     if (r.restart_needed) toast("Restart Turks (System › Status) for the API change to take effect.");
   }
@@ -209,6 +221,15 @@ function menuItem(label, selected, onclick, cls = "menu-item") {
   return el("button." + cls + (selected ? ".selected" : ""), { onclick }, el("span.hand", { html: '<svg width="34" height="22"><use href="#hand"/></svg>' }), label);
 }
 
+/** Xbox page bar: a tab per menu page along the bottom, so pages switch without the home screen. */
+function renderPageBar() {
+  const cur = menuOf(Turks.page);
+  $("#gtabs").replaceChildren(...MENU.map(([key, label], i) => el("button.gnav", {
+    "aria-current": key === cur ? "page" : "false",
+    onclick: () => { if (key !== cur || Turks.arg) { Turks.cursor = i; switchPage(key); } },
+  }, label)));
+}
+
 function renderMenu() {
   const nav = $("#menu");
   nav.classList.toggle("menu-used", Turks.menuUsed);
@@ -248,6 +269,7 @@ function go(page, arg) {
     setGreenTitle((MENU.find((m) => m[0] === menuOf(page)) || [, page])[1]);
     $("#gback-label").textContent = page === "movies" && arg ? "MOVIES" : "BACK";
     drawGrid();
+    renderPageBar();
   }
   const p = Turks.pages[page];
   if (!p) return;
@@ -789,10 +811,10 @@ function stepBack() {
   zoomHome();
 }
 
-// Opening a page from home zooms into the orb until it fills the window and
-// flares lime, then the page fades in out of the glow. BACK plays it reversed.
-const ZOOM_MS = 500, REVEAL_MS = 350;
-const EASE_IN = "cubic-bezier(.32,0,.67,0)", EASE_OUT = "cubic-bezier(.33,1,.68,1)";
+// Opening a page from home: the orb drifts a little closer while everything
+// eases into a dark veil, then the page fades in out of it. BACK plays it
+// reversed. No bright flashes (the user asked for slow, gentle fades only).
+const ZOOM_MS = 600, REVEAL_MS = 500;
 let zooming = false;
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -802,51 +824,49 @@ function glowLayer() {
   return g;
 }
 
-/** How much the orb must grow to cover the window from its center. */
-function orbCoverScale(orb) {
-  const b = orb.getBoundingClientRect();
-  const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
-  const reach = Math.max(...[[0, 0], [innerWidth, 0], [0, innerHeight], [innerWidth, innerHeight]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
-  return (reach * 1.15) / (b.width / 2 || 1);
+/** Fades the dark veil from one opacity to another. */
+function fade(from, to, ms) {
+  const g = glowLayer();
+  g.getAnimations().forEach((a) => a.cancel());
+  return g.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: "ease-in-out", fill: "forwards" }).finished;
 }
 
 const orbFrames = (from, to) => [{ transform: `translate(-50%, -50%) scale(${from})` }, { transform: `translate(-50%, -50%) scale(${to})` }];
 
-function openFromHome(key) {
+async function openFromHome(key) {
   const orb = $("#bigorb");
   if (zooming) return;
   if (!isGreen() || !Turks.home || !orb || calm()) return go(key);
   zooming = true;
-  const g = glowLayer(), s = orbCoverScale(orb);
-  orb.style.zIndex = 40;
-  orb.animate(orbFrames(1, s), { duration: ZOOM_MS, easing: EASE_IN, fill: "forwards" });
-  g.animate([{ opacity: 0 }, { opacity: 0, offset: 0.55 }, { opacity: 1 }], { duration: ZOOM_MS, easing: "ease-in", fill: "forwards" }).finished.then(() => {
-    orb.getAnimations().forEach((a) => a.cancel());
-    orb.style.zIndex = "";
-    go(key);
-    g.getAnimations().forEach((a) => a.cancel());
-    g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: REVEAL_MS, easing: "ease-out", fill: "forwards" }).finished.then(() => { zooming = false; });
-  });
+  orb.animate(orbFrames(1, 1.6), { duration: ZOOM_MS, easing: "ease-in-out", fill: "forwards" });
+  await fade(0, 0.96, ZOOM_MS);
+  orb.getAnimations().forEach((a) => a.cancel());
+  go(key);
+  await fade(0.96, 0, REVEAL_MS);
+  zooming = false;
 }
 
-function zoomHome() {
+async function zoomHome() {
   if (zooming) return;
   if (calm()) return goHome();
   zooming = true;
-  const g = glowLayer();
-  g.getAnimations().forEach((a) => a.cancel());
-  g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: REVEAL_MS, easing: "ease-in", fill: "forwards" }).finished.then(() => {
-    goHome();
-    const orb = $("#bigorb");
-    const s = orbCoverScale(orb);
-    orb.style.zIndex = 40;
-    orb.animate(orbFrames(s, 1), { duration: ZOOM_MS, easing: EASE_OUT });
-    g.getAnimations().forEach((a) => a.cancel());
-    g.animate([{ opacity: 1 }, { opacity: 0, offset: 0.45 }, { opacity: 0 }], { duration: ZOOM_MS, easing: "ease-out", fill: "forwards" }).finished.then(() => {
-      orb.style.zIndex = "";
-      zooming = false;
-    });
-  });
+  await fade(0, 0.96, REVEAL_MS);
+  goHome();
+  const orb = $("#bigorb");
+  if (orb) orb.animate(orbFrames(1.6, 1), { duration: ZOOM_MS, easing: "ease-in-out" });
+  await fade(0.96, 0, ZOOM_MS);
+  zooming = false;
+}
+
+/** Page bar: a short soft fade between pages. */
+async function switchPage(key) {
+  if (zooming) return;
+  if (calm()) return go(key);
+  zooming = true;
+  await fade(0, 0.7, 200);
+  go(key);
+  await fade(0.7, 0, 300);
+  zooming = false;
 }
 
 function greenKey(e) {
@@ -970,6 +990,6 @@ Turks.start = async function () {
   $("#ghome-status").onclick = () => go("system");
   if (!Turks.cfg.tmdb_api_key) { go("settings", "general"); applyTheme(true); }
   else if (isGreen()) { Turks.page = "movies"; applyTheme(false); }
-  else go("movies");
+  else { Turks.page = "movies"; applyTheme(true); }
   if (window.splashDone) splashDone(isGlass() ? "glass" : isBlades() ? "blades" : isGreen() ? "green" : "ff");
 };
