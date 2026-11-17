@@ -113,20 +113,27 @@ impl App {
                         let green = ff::is_green();
                         let fill = if green {
                             Color32::from_rgba_premultiplied(2, 16, 2, if in_month { 140 } else { 60 })
+                        } else if ff::is_glass() {
+                            Color32::from_rgba_unmultiplied(255, 255, 255, if in_month { 12 } else { 5 })
                         } else if ff::is_blades() {
                             Color32::from_rgba_unmultiplied(255, 255, 255, if in_month { 26 } else { 10 })
                         } else {
                             Color32::from_rgba_premultiplied(8, 12, 52, if in_month { 120 } else { 50 })
                         };
                         // Today gets a quiet outline, not a bright block.
-                        let edge = if day == today {
+                        let edge = if day == today && ff::is_glass() {
+                            egui::Stroke::new(2.0, ff::pal().accent)
+                        } else if day == today {
                             egui::Stroke::new(1.5, WARN().gamma_multiply(0.8))
                         } else if green {
                             egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(150, 255, 70, 50))
+                        } else if ff::is_glass() {
+                            egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 14))
                         } else {
                             egui::Stroke::new(1.0, Color32::from_rgba_premultiplied(150, 160, 220, 60))
                         };
-                        ui.painter().rect(rect, egui::CornerRadius::same(if green { 1 } else { 4 }), fill, edge, egui::StrokeKind::Inside);
+                        let corner = if green { 1 } else if ff::is_glass() { 12 } else { 4 };
+                        ui.painter().rect(rect, egui::CornerRadius::same(corner), fill, edge, egui::StrokeKind::Inside);
                         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(4.0)).layout(egui::Layout::top_down(egui::Align::Min)));
                         child.label(RichText::new(day.day().to_string()).color(if in_month { TEXT() } else { TEXT_DIM() }).strong().size(12.0));
                         for (_, k, m) in events.iter().filter(|e| e.0 == day) {

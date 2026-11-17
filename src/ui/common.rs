@@ -50,6 +50,35 @@ pub fn heading(ui: &mut Ui, text: &str) {
 /// A poster with the FF window's silver border; initials when there's no image.
 pub fn poster(ui: &mut Ui, tex: Option<egui::TextureId>, initials: &str, size: Vec2, accent: Color32) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    if ff::is_glass() {
+        // Rounded art with a soft shadow; it lifts a little on hover.
+        let lift = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.3);
+        let rect = rect.translate(Vec2::new(0.0, -3.0 * lift));
+        let radius = egui::CornerRadius::same(12);
+        let painter = ui.painter();
+        let shadow = egui::epaint::Shadow { offset: [0, (8.0 + 6.0 * lift) as i8], blur: (20.0 + 10.0 * lift) as u8, spread: 0, color: Color32::from_black_alpha(110) };
+        painter.add(shadow.as_shape(rect, radius));
+        match tex {
+            Some(t) => {
+                egui::Image::from_texture((t, size)).corner_radius(radius).paint_at(ui, rect);
+            }
+            None => {
+                painter.rect_filled(rect, radius, Color32::from_rgb(34, 34, 44));
+                painter.text(rect.center(), egui::Align2::CENTER_CENTER, initials, egui::FontId::proportional((size.x * 0.26).max(14.0)), Color32::from_rgb(200, 200, 210));
+            }
+        }
+        let painter = ui.painter();
+        painter.rect_stroke(rect, radius, egui::Stroke::new(1.0, Color32::from_black_alpha(115)), egui::StrokeKind::Outside);
+        painter.rect_stroke(rect, radius, egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, (18.0 + 40.0 * lift) as u8)), egui::StrokeKind::Inside);
+        if accent != Color32::TRANSPARENT {
+            let bar = egui::Rect::from_min_size(egui::pos2(rect.left() + 10.0, rect.bottom() - 10.0), Vec2::new(rect.width() - 20.0, 4.0));
+            painter.rect_filled(bar, egui::CornerRadius::same(2), accent);
+        }
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        return resp;
+    }
     let painter = ui.painter();
     painter.rect_filled(rect.translate(Vec2::new(3.0, 4.0)), egui::CornerRadius::same(4), Color32::from_black_alpha(120));
     match tex {

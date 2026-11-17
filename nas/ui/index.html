@@ -15,6 +15,8 @@
   --si:#f4f4f8;--sa:#70ccff;--sd:#aab2d6;color:var(--si);transition:opacity .6s ease}
 #splash.green{background:radial-gradient(ellipse at 50% 42%,#165c10 0%,#0a3608 38%,#041c04 70%,#010a01 100%);--si:#e4ffc4;--sa:#c8ff4a;--sd:#a6dc80}
 #splash.blades{background:linear-gradient(135deg,#cfcfcf 0%,#f2f2f2 50%,#c8c8c8 100%);--si:#2f2f2f;--sa:#5b5b5b;--sd:#6a6a6a}
+#splash.glass{background:radial-gradient(900px 640px at 10% 6%,rgba(56,92,255,.38),transparent 60%),radial-gradient(820px 620px at 94% 24%,rgba(168,64,255,.26),transparent 62%),radial-gradient(900px 700px at 58% 112%,rgba(0,190,170,.2),transparent 60%),#04050a;--si:#ffffff;--sa:#ffffff;--sd:rgba(235,235,245,.62)}
+#splash.glass .sp-title{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;font-weight:600}
 #splash.out{opacity:0;pointer-events:none}
 #splash .sp-in{display:flex;flex-direction:column;align-items:center;animation:spIn 1s ease-out both}
 #splash .sp-emblem{color:var(--sa)}
@@ -48,7 +50,7 @@
 <script>
 (function () {
   var s = document.getElementById('splash'); if (!s) return;
-  try { var t = localStorage.getItem('turks-theme'); if (t === 'green' || t === 'blades') s.classList.add(t); } catch (e) {}
+  try { var t = localStorage.getItem('turks-theme'); if (t === 'green' || t === 'blades' || t === 'glass') s.classList.add(t); } catch (e) {}
   var born = Date.now(), gone = false;
   function out() { if (gone) return; gone = true; s.classList.add('out'); setTimeout(function () { s.remove(); }, 700); }
   window.splashDone = function (theme) {

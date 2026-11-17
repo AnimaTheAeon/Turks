@@ -68,15 +68,17 @@ fn card(ui: &mut Ui, title: &str, sub: &str, ok: Option<bool>) -> (egui::Respons
     let hovered = r.hovered();
     ui.painter().rect(
         rect,
-        egui::CornerRadius::same(if ff::is_green() { 1 } else if ff::is_blades() { 14 } else { 5 }),
+        egui::CornerRadius::same(if ff::is_green() { 1 } else if ff::is_glass() { 16 } else if ff::is_blades() { 14 } else { 5 }),
         if ff::is_green() {
             egui::Color32::from_rgba_premultiplied(2, 18, 2, 160)
+        } else if ff::is_glass() {
+            egui::Color32::from_rgba_unmultiplied(255, 255, 255, if hovered { 26 } else { 14 })
         } else if ff::is_blades() {
             egui::Color32::from_rgba_unmultiplied(255, 255, 255, 24)
         } else {
             egui::Color32::from_rgba_premultiplied(8, 12, 52, 150)
         },
-        egui::Stroke::new(1.0, if hovered { LABEL() } else { ff::BORDER_MID() }),
+        if ff::is_glass() { egui::Stroke::new(1.0, egui::Color32::from_black_alpha(90)) } else { egui::Stroke::new(1.0, if hovered { LABEL() } else { ff::BORDER_MID() }) },
         egui::StrokeKind::Inside,
     );
     let mut delete = false;
@@ -883,11 +885,11 @@ impl App {
         let c = &mut self.cfg;
         let mut ch = false;
         w::section_help(ui, "Look", "");
-        ch |= w::row(ui, "Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways.", |ui| {
+        ch |= w::row(ui, "Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Liquid Glass: dark frosted glass with the menu on the left.", |ui| {
             let mut changed = false;
             let cur = ff::Theme::from_key(&c.theme);
             egui::ComboBox::from_id_salt("theme").selected_text(cur.label()).show_ui(ui, |ui| {
-                for t in [ff::Theme::FfMenu, ff::Theme::GreenDash, ff::Theme::Blades] {
+                for t in [ff::Theme::FfMenu, ff::Theme::GreenDash, ff::Theme::Blades, ff::Theme::Glass] {
                     if ui.selectable_label(cur == t, t.label()).clicked() && cur != t {
                         c.theme = t.key().to_string();
                         changed = true;

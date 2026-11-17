@@ -213,7 +213,23 @@ function renderMenu() {
   const nav = $("#menu");
   nav.classList.toggle("menu-used", Turks.menuUsed);
   nav.replaceChildren(...MENU.map(([key, label]) => menuItem(label, menuOf(Turks.page) === key, () => { Turks.menuUsed = true; go(key); })));
+  glassPill();
 }
+
+/** Liquid Glass: move the menu's selection pill under the open page. The
+ * pill is the menu's ::before, so it glides there with a CSS transition. */
+function glassPill() {
+  const nav = $("#menu");
+  if (!nav) return;
+  const cur = nav.querySelector(".menu-item.selected");
+  nav.classList.toggle("has-sel", !!cur);
+  if (!cur) return;
+  nav.style.setProperty("--sel-top", cur.offsetTop + "px");
+  nav.style.setProperty("--sel-left", cur.offsetLeft + "px");
+  nav.style.setProperty("--sel-w", cur.offsetWidth + "px");
+  nav.style.setProperty("--sel-h", cur.offsetHeight + "px");
+}
+addEventListener("resize", glassPill);
 
 /** Switch page. `arg` is page-specific (e.g. a movie id). */
 function go(page, arg) {
@@ -499,6 +515,7 @@ function tagPicker(ids, onchange) {
 // Same look as Lifestream's NAS page.
 
 const isBlades = () => !!(Turks.cfg && Turks.cfg.theme === "blades");
+const isGlass = () => !!(Turks.cfg && Turks.cfg.theme === "glass");
 let bstage = null, bcur = 0, bdrag = null;
 const BARROW = (d) => `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
@@ -701,6 +718,8 @@ function applyTheme(stay) {
   const green = isGreen(), blades = isBlades();
   document.body.classList.toggle("green", green);
   document.body.classList.toggle("blades", blades);
+  document.body.classList.toggle("glass", isGlass());
+  requestAnimationFrame(glassPill);
   if (blades) {
     document.body.classList.remove("ghome-on");
     Turks.home = false;
@@ -928,5 +947,5 @@ Turks.start = async function () {
   if (!Turks.cfg.tmdb_api_key) { go("settings", "general"); applyTheme(true); }
   else if (isGreen()) { Turks.page = "movies"; applyTheme(false); }
   else go("movies");
-  if (window.splashDone) splashDone(isBlades() ? "blades" : isGreen() ? "green" : "ff");
+  if (window.splashDone) splashDone(isGlass() ? "glass" : isBlades() ? "blades" : isGreen() ? "green" : "ff");
 };

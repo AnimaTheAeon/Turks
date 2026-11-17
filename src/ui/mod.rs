@@ -277,23 +277,44 @@ impl App {
             return self.blades_layout(ui);
         }
         let full = ui.max_rect();
+        let glass = ff::is_glass();
+        if glass {
+            ff::paint_glass_backdrop(ui.painter(), full.expand(14.0), 1.0);
+        }
         let gap = 12.0;
         let side_w = 220.0_f32.min(full.width() * 0.28);
         let bar_h = 48.0;
-        let main = Rect::from_min_max(full.min, pos2(full.right() - side_w - gap, full.bottom() - bar_h - gap));
+        // Liquid Glass puts the sidebar on the left, like an iPad app.
+        let main = if glass {
+            Rect::from_min_max(pos2(full.left() + side_w + gap, full.top()), pos2(full.right(), full.bottom() - bar_h - gap))
+        } else {
+            Rect::from_min_max(full.min, pos2(full.right() - side_w - gap, full.bottom() - bar_h - gap))
+        };
         let menu_h = MENU.len() as f32 * (ff::MENU_ITEM_HEIGHT + 6.0) + ff::WINDOW_PADDING as f32 * 2.0;
-        let menu = Rect::from_min_size(pos2(main.right() + gap, full.top()), Vec2::new(side_w, menu_h));
-        let info_h = 186.0;
-        let info = Rect::from_min_max(pos2(menu.left(), main.bottom() - info_h), pos2(full.right(), main.bottom()));
+        let menu_x = if glass { full.left() } else { main.right() + gap };
+        let menu = Rect::from_min_size(pos2(menu_x, full.top()), Vec2::new(side_w, menu_h));
+        let info_h = if glass { 214.0 } else { 186.0 };
+        let info = Rect::from_min_max(pos2(menu.left(), main.bottom() - info_h), pos2(menu.right(), main.bottom()));
         let bar = Rect::from_min_max(pos2(full.left(), full.bottom() - bar_h), full.max);
 
         let current = self.page.menu();
         let mut goto = None;
         ff::window_at(ui, menu, "menu", |ui| {
+            let pill = ui.painter().add(egui::Shape::Noop);
+            let mut sel = None;
             for (page, label) in MENU {
                 let r = ff::menu_item(ui, label, self.menu_touched && current == *page, true);
+                if current == *page {
+                    sel = Some(r.rect);
+                }
                 if r.clicked() {
                     goto = Some(*page);
+                }
+            }
+            if glass {
+                if let Some(rect) = sel {
+                    // Into the slot reserved under the labels.
+                    ui.painter().set(pill, egui::Shape::Vec(ff::glass_pill(ui.ctx(), "menu", rect)));
                 }
             }
         });
