@@ -349,6 +349,8 @@ fn handle(core: Core, mut req: Request) {
                 core.remove::<Indexer>(id);
                 (200, json!({}))
             }
+            // A release from outside (Radarr's release push): Turks decides and grabs.
+            (Method::Post, "release", Some("push")) => push_release(&core, &body)?,
             (Method::Get, "downloadclient", _) => {
                 let lib = core.lib();
                 (200, json!(lib.clients.values().map(|c| json!({"id": c.id, "name": c.name, "enable": c.enabled, "protocol": c.kind.protocol().label().to_lowercase(), "implementation": c.kind.label(), "priority": c.priority})).collect::<Vec<_>>()))
@@ -561,4 +563,66 @@ fn ical(core: &Core, past_days: i64, future_days: i64, unmonitored: bool) -> Str
     }
     out.push_str("END:VCALENDAR\r\n");
     out
+}
+
+// ------------------------------------------------------------------ release push
+
+fn push_release(core: &Core, body: &Value) -> Result<(u16, Value), String> {
+    let str_of = |k: &str| body.get(k).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    let title = str_of("title");
+    let magnet = str_of("magnetUrl");
+    let download = str_of("downloadUrl");
+    let mut errors = Vec::new();
+    if title.is_empty() {
+        errors.push(json!({"propertyName": "Title", "errorMessage": "'Title' must not be empty."}));
+    }
+    if magnet.is_empty() && download.is_empty() {
+        errors.push(json!({"propertyName": "DownloadUrl", "errorMessage": "'Download Url' must not be empty."}));
+    }
+    if !errors.is_empty() {
+        return Ok((400, json!(errors)));
+    }
+    let protocol = if str_of("protocol").eq_ignore_ascii_case("usenet") { Protocol::Usenet } else { Protocol::Torrent };
+    let publish_date = chrono::DateTime::parse_from_rfc3339(&str_of("publishDate")).ok().map(|d| d.with_timezone(&chrono::Utc));
+    let indexer = Some(str_of("indexer")).filter(|i| !i.is_empty()).unwrap_or_else(|| "Pushed".into());
+    let magnet_url = if magnet.is_empty() && download.starts_with("magnet:") { download.clone() } else { magnet };
+    let info_hash = crate::indexers::magnet_hash(&magnet_url).unwrap_or_default();
+    let release = crate::release::Release {
+        guid: format!("PUSH-{}", if download.is_empty() { &magnet_url } else { &download }),
+        title: title.clone(),
+        size: body.get("size").and_then(|v| v.as_u64()).unwrap_or(0),
+        download_url: download,
+        magnet_url,
+        info_hash,
+        indexer,
+        protocol,
+        publish_date: publish_date.or_else(|| Some(chrono::Utc::now())),
+        ..Default::default()
+    };
+    let c = crate::search::push(core, release);
+    if c.parsed.titles.is_empty() && c.parsed.year == 0 {
+        return Ok((400, json!([{"propertyName": "Title", "errorMessage": "Unable to parse", "attemptedValue": title}])));
+    }
+    let movie = c.movie_id.and_then(|id| core.movie(id));
+    let rejections: Vec<String> = c.rejections.iter().map(|r| r.reason.clone()).collect();
+    let approved = c.rejections.is_empty();
+    let held = !approved && c.temporarily_rejected && !c.permanently_rejected();
+    Ok((
+        200,
+        json!([{
+            "guid": c.release.guid,
+            "title": c.release.title,
+            "quality": crate::quality::full_name(&c.parsed.quality),
+            "movieTitles": c.parsed.titles,
+            "year": c.parsed.year,
+            "mappedMovieId": c.movie_id,
+            "movieTitle": movie.as_ref().map(|m| m.title.clone()),
+            "movieYear": movie.as_ref().map(|m| m.year),
+            "approved": approved,
+            "temporarilyRejected": held,
+            "rejected": !approved && !held,
+            "rejections": rejections,
+            "customFormatScore": c.score,
+        }]),
+    ))
 }

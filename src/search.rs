@@ -8,7 +8,7 @@ use crate::core::{Core, InteractiveResult};
 use crate::decision::{self, Ctx, Mode};
 use crate::model::*;
 use crate::notify::{self, Event};
-use crate::release::{Candidate, Release};
+use crate::release::{Candidate, Rejection, Release};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Purpose {
@@ -190,6 +190,28 @@ pub fn rss_sync(core: &Core, cid: u64) -> Result<String, String> {
     }
     grabbed += process_pending(core);
     Ok(format!("Grabbed {grabbed}"))
+}
+
+// ---------------------------------------------------------------- pushed releases
+
+/// A release handed in from outside (the browser extension, autobrr…).
+/// It's judged like an RSS release: grabbed if it passes, held if a delay
+/// profile says wait, otherwise turned down with the reasons.
+pub fn push(core: &Core, release: Release) -> Candidate {
+    let mut c = decide(core, vec![release], None, Mode::Rss).pop().unwrap_or_default();
+    if c.approved() {
+        crate::applog::info(format!("Pushed release accepted: {}", c.release.title));
+        if let Err(e) = grab(core, &c, false) {
+            c.rejections.push(Rejection::perm(format!("Couldn't send it to the download client: {e}")));
+        }
+    } else if c.temporarily_rejected && !c.permanently_rejected() {
+        crate::applog::info(format!("Pushed release held by the delay profile: {}", c.release.title));
+        add_pending(core, &c);
+    } else {
+        let why: Vec<&str> = c.rejections.iter().map(|r| r.reason.as_str()).collect();
+        crate::applog::info(format!("Pushed release turned down: {} ({})", c.release.title, why.join("; ")));
+    }
+    c
 }
 
 // ---------------------------------------------------------------- pending (delay profiles)
