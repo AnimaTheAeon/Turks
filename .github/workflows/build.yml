@@ -115,7 +115,7 @@ jobs:
             out/**/Turks-Setup-*.exe
             out/**/*.spk
           make_latest: true
-          generate_release_notes: true
+          generate_release_notes: false
           body: |
             **Windows:** run `Turks-Setup-${{ needs.windows.outputs.version }}.exe` (or use the portable `turks.exe`). Installed copies update themselves from here.
 
