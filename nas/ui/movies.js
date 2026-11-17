@@ -273,7 +273,7 @@ async function renderDetail(main, id) {
         m.youtube_trailer ? el("a", { href: "https://www.youtube.com/watch?v=" + m.youtube_trailer, target: "_blank" }, "Trailer") : null),
       el("div.overview", m.overview || ""),
       el("div.kv",
-        el("span.k", "Path"), el("span.ellipsis", m.path),
+        el("span.k", "Path"), el("span.ellipsis", m.loose && m.file ? m.path.replace(/[\\/]+$/, "") + "/" + m.file.relative_path : m.path + (m.loose ? " (as a single file)" : "")),
         el("span.k", "Profile"), el("span", profileName(m.quality_profile_id), " · ", (AVAIL.find((a) => a[0] === m.minimum_availability) || [, ""])[1]),
         el("span.k", "Status"), el("span", STATUS_LABEL[m.status] || m.status, m.in_cinemas ? " · cinemas " + dateStr(m.in_cinemas) : "", m.digital_release ? " · digital " + dateStr(m.digital_release) : "", m.physical_release ? " · disc " + dateStr(m.physical_release) : ""),
         m.tags.length ? el("span.k", "Tags") : null, m.tags.length ? el("span", m.tags.map(tagName).join(", ")) : null),

@@ -187,6 +187,8 @@ fn handle(core: Core, mut req: Request) {
                     body.get("path").and_then(|v| v.as_str()).and_then(|p| std::path::Path::new(p).parent().map(|x| x.display().to_string()))
                 });
                 let opts = AddOptions {
+                    genre_folder: String::new(),
+                    existing: None,
                     root_folder: root.or_else(|| core.lib().root_folders.values().next().map(|r| r.path.clone())).ok_or("rootFolderPath is required")?,
                     quality_profile_id: body.get("qualityProfileId").and_then(|v| v.as_i64()).unwrap_or_else(|| core.lib().profiles.keys().next().copied().unwrap_or(1)),
                     minimum_availability: availability_from(body.get("minimumAvailability").and_then(|v| v.as_str()).unwrap_or("released")),

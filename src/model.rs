@@ -115,7 +115,12 @@ pub struct Movie {
     pub minimum_availability: Availability,
     pub quality_profile_id: Id,
     pub root_folder: String,
+    /// The movie's folder. For a loose movie this is a shared folder (e.g. a
+    /// genre folder) and the movie owns only its video and the files that
+    /// share its name, never the folder itself.
     pub path: String,
+    /// The movie is a single file sitting in a shared folder, not a folder of its own.
+    pub loose: bool,
     pub tags: Vec<Id>,
     pub added: Option<DateTime<Utc>>,
     pub last_info_sync: Option<DateTime<Utc>>,

@@ -38,6 +38,9 @@ pub struct ImportRow {
 pub struct AddDialog {
     pub hit: SearchHit,
     pub opts: AddOptions,
+    /// Genre folders in the chosen root folder, and which root they're for.
+    pub groups: Vec<String>,
+    pub groups_root: String,
     pub new_tag: String,
     pub adding: Option<Task<Result<Movie, String>>>,
     pub error: Option<String>,
@@ -58,6 +61,16 @@ pub struct CollectionsState {
     pub open: Option<Id>,
 }
 
+impl AddDialog {
+    /// Reads the root folder's genre folders and picks the one that fits the
+    /// movie's genres (or its own folder when none does).
+    fn load_groups(&mut self, lib: &crate::db::Library) {
+        self.groups_root = self.opts.root_folder.clone();
+        self.groups = crate::import::group_folders(lib, std::path::Path::new(&self.opts.root_folder));
+        self.opts.genre_folder = crate::tmdb::suggest_genre_folder(&self.hit.genres, &self.groups).unwrap_or_default();
+    }
+}
+
 impl App {
     pub fn default_add_options(&self) -> AddOptions {
         let lib = self.core.lib();
@@ -72,11 +85,13 @@ impl App {
         } else {
             lib.profiles.values().find(|p| p.name == "HD-1080p").or_else(|| lib.profiles.values().next()).map(|p| p.id).unwrap_or(0)
         };
-        AddOptions { root_folder: root, quality_profile_id: profile, minimum_availability: c.last_add_availability, monitor: ListMonitor::MovieOnly, tags: vec![], search: c.last_add_search }
+        AddOptions { genre_folder: String::new(), existing: None, root_folder: root, quality_profile_id: profile, minimum_availability: c.last_add_availability, monitor: ListMonitor::MovieOnly, tags: vec![], search: c.last_add_search }
     }
 
     pub fn open_add_dialog(&mut self, hit: SearchHit) {
-        self.dialog = Some(Dialog::AddMovie(AddDialog { hit, opts: self.default_add_options(), new_tag: String::new(), adding: None, error: None }));
+        let mut d = AddDialog { hit, opts: self.default_add_options(), groups: vec![], groups_root: String::new(), new_tag: String::new(), adding: None, error: None };
+        d.load_groups(&self.core.lib());
+        self.dialog = Some(Dialog::AddMovie(d));
     }
 
     /// The four ways to add movies, shown at the top of each of them.
@@ -226,6 +241,20 @@ impl App {
             w::row(ui, "Root folder", "Where the movie's folder will be made.", |ui| {
                 common::root_combo(ui, "add-root", &lib, &mut s.opts.root_folder);
             });
+            if s.groups_root != s.opts.root_folder {
+                s.load_groups(&lib);
+            }
+            if !s.groups.is_empty() {
+                w::row(ui, "Genre folder", "Put the movie straight into a genre folder as a single file, next to your other movies of that genre. 'Its own folder' makes a folder for it instead.", |ui| {
+                    let text = if s.opts.genre_folder.is_empty() { "Its own folder".to_string() } else { s.opts.genre_folder.clone() };
+                    egui::ComboBox::from_id_salt("add-genre").selected_text(text).width(260.0).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut s.opts.genre_folder, String::new(), "Its own folder");
+                        for g in &s.groups {
+                            ui.selectable_value(&mut s.opts.genre_folder, g.clone(), g);
+                        }
+                    });
+                });
+            }
             w::row(ui, "Monitor", "Monitored movies are searched for and upgraded. 'Movie and collection' also follows the rest of its collection.", |ui| {
                 common::monitor_combo(ui, "add-mon", &mut s.opts.monitor);
             });
@@ -277,7 +306,7 @@ impl App {
             self.add.profile = lib.profiles.keys().next().copied().unwrap_or(0);
             self.add.monitor = true;
         }
-        ui.add(egui::Label::new(common::dim_text("Turks looks through a root folder for movie folders it doesn't know yet, matches each one on TMDb, and adds them with the files already in place (nothing is moved).")).wrap());
+        ui.add(egui::Label::new(common::dim_text("Turks looks through a root folder for movies it doesn't know yet, including inside genre folders (each video file and each movie folder in them counts as one movie), matches each one on TMDb, and adds them with the files where they are (nothing is moved or renamed).")).wrap());
         ui.horizontal(|ui| {
             common::root_combo(ui, "li-root", &lib, &mut self.add.root);
             let busy = self.add.scanning.is_some();
@@ -320,8 +349,16 @@ impl App {
             let n = self.add.unmapped.iter().filter(|r| r.include && !r.matches.is_empty()).count();
             if ui.add_enabled(n > 0 && !self.add.importing, egui::Button::new(RichText::new(format!("Import {n} movies")).color(GOOD()).strong())).clicked() {
                 let core = self.core.clone();
-                let rows: Vec<(i64, String)> = self.add.unmapped.iter().filter(|r| r.include && !r.matches.is_empty()).map(|r| (r.matches[r.chosen].tmdb_id, r.folder.path.display().to_string())).collect();
+                let rows: Vec<crate::library::LibraryRow> = self
+                    .add
+                    .unmapped
+                    .iter()
+                    .filter(|r| r.include && !r.matches.is_empty())
+                    .map(|r| crate::library::LibraryRow { tmdb_id: r.matches[r.chosen].tmdb_id, path: r.folder.path.display().to_string(), loose: r.folder.loose })
+                    .collect();
                 let opts = AddOptions {
+                    genre_folder: String::new(),
+                    existing: None,
                     root_folder: self.add.root.clone(),
                     quality_profile_id: self.add.profile,
                     minimum_availability: self.add.availability,
@@ -330,20 +367,7 @@ impl App {
                     search: false,
                 };
                 std::thread::spawn(move || {
-                    let mut ok = 0;
-                    for (tmdb, path) in rows {
-                        match crate::library::add_movie(&core, tmdb, &opts) {
-                            Ok(m) => {
-                                // Keep the existing folder name instead of renaming it.
-                                if m.path != path {
-                                    let _ = crate::library::move_movie(&core, m.id, &path, false);
-                                }
-                                let _ = crate::library::rescan_one(&core, m.id);
-                                ok += 1;
-                            }
-                            Err(e) => core.toast(format!("Couldn't add {path}: {e}")),
-                        }
-                    }
+                    let ok = crate::library::import_library(&core, rows, &opts);
                     core.toast(format!("Imported {ok} movies."));
                 });
                 self.add.unmapped.clear();
@@ -352,14 +376,15 @@ impl App {
         ff::divider(ui);
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             egui::Grid::new("li-grid").striped(true).spacing([12.0, 6.0]).show(ui, |ui| {
-                for h in ["", "Folder", "Files", "Match on TMDb"] {
+                for h in ["", "Genre", "Folder or file", "Files", "Match on TMDb"] {
                     ff::title(ui, h, 13.0, LABEL());
                 }
                 ui.end_row();
                 for (i, r) in self.add.unmapped.iter_mut().enumerate() {
                     ui.add_enabled(!r.matches.is_empty(), egui::Checkbox::without_text(&mut r.include));
+                    ui.label(common::dim_text(if r.folder.group.is_empty() { "—" } else { &r.folder.group }));
                     ui.label(RichText::new(&r.folder.name).color(TEXT()));
-                    ui.label(r.folder.video_count.to_string());
+                    ui.label(if r.folder.loose { "1 file".to_string() } else { r.folder.video_count.to_string() });
                     if r.matches.is_empty() {
                         ui.label(RichText::new("No match found").color(BAD()));
                     } else {

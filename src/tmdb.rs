@@ -36,6 +36,67 @@ pub struct SearchHit {
     pub poster_path: String,
     pub popularity: f32,
     pub vote: f32,
+    /// TMDb genre names, e.g. ["Horror", "Thriller"].
+    pub genres: Vec<String>,
+}
+
+/// TMDb's movie genre ids (search results only carry the ids).
+pub fn genre_name(id: i64) -> Option<&'static str> {
+    Some(match id {
+        28 => "Action",
+        12 => "Adventure",
+        16 => "Animation",
+        35 => "Comedy",
+        80 => "Crime",
+        99 => "Documentary",
+        18 => "Drama",
+        10751 => "Family",
+        14 => "Fantasy",
+        36 => "History",
+        27 => "Horror",
+        10402 => "Music",
+        9648 => "Mystery",
+        10749 => "Romance",
+        878 => "Science Fiction",
+        10770 => "TV Movie",
+        53 => "Thriller",
+        10752 => "War",
+        37 => "Western",
+        _ => return None,
+    })
+}
+
+/// The genre folder that best fits a movie's genres, if any: the first of its
+/// genres (TMDb lists the main one first) that a folder's name matches, e.g.
+/// "Horror" → "Horror", "Action" → "Action Adventure", "Animation" → "Animated",
+/// "Thriller" → "Suspense".
+pub fn suggest_genre_folder(genres: &[String], folders: &[String]) -> Option<String> {
+    let alias = |g: &str| -> Vec<String> {
+        let g = g.to_lowercase();
+        let mut v = vec![g.clone()];
+        match g.as_str() {
+            "animation" => v.extend(["animated", "cartoon", "anime"].map(String::from)),
+            "science fiction" => v.extend(["sci-fi", "scifi", "sci fi"].map(String::from)),
+            "thriller" | "mystery" => v.extend(["suspense", "thriller", "mystery"].map(String::from)),
+            "family" => v.extend(["kids", "children"].map(String::from)),
+            "documentary" => v.push("documentaries".into()),
+            "romance" => v.push("romantic".into()),
+            "music" => v.push("musical".into()),
+            _ => {}
+        }
+        v
+    };
+    for g in genres {
+        for word in alias(g) {
+            if let Some(f) = folders.iter().find(|f| {
+                let f = f.to_lowercase();
+                f == word || f.split(|c: char| !c.is_alphanumeric() && c != '-').any(|part| part == word) || (word.len() >= 5 && f.starts_with(&word[..5]))
+            }) {
+                return Some(f.clone());
+            }
+        }
+    }
+    None
 }
 
 pub fn http_client(timeout_secs: u64) -> reqwest::blocking::Client {
@@ -127,6 +188,11 @@ impl Tmdb {
             poster_path: s(m, "poster_path"),
             popularity: m.get("popularity").and_then(|p| p.as_f64()).unwrap_or(0.0) as f32,
             vote: m.get("vote_average").and_then(|p| p.as_f64()).unwrap_or(0.0) as f32,
+            genres: m
+                .get("genre_ids")
+                .and_then(|g| g.as_array())
+                .map(|a| a.iter().filter_map(|i| i.as_i64().and_then(genre_name)).map(String::from).collect())
+                .unwrap_or_default(),
         }
     }
 

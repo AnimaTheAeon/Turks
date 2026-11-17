@@ -93,16 +93,23 @@ pub fn write(movie: &Movie, file: Option<&MovieFile>, cfg: &Config) {
     if !dir.is_dir() {
         return;
     }
-    let nfo_name = file
-        .and_then(|f| Path::new(&f.relative_path).file_stem().map(|s| format!("{}.nfo", s.to_string_lossy())))
-        .unwrap_or_else(|| "movie.nfo".into());
+    // A loose movie shares its folder: everything it writes carries its own
+    // file name, and nothing is written until it has a file.
+    let stem = file.and_then(|f| Path::new(&f.relative_path).file_stem().map(|s| s.to_string_lossy().to_string()));
+    if movie.loose && stem.is_none() {
+        return;
+    }
+    let nfo_name = stem.as_ref().map(|s| format!("{s}.nfo")).unwrap_or_else(|| "movie.nfo".into());
     if let Err(e) = std::fs::write(dir.join(&nfo_name), nfo(movie, file, cfg)) {
         crate::applog::warn(format!("Couldn't write {nfo_name} for {}: {e}", movie.display()));
     }
     if cfg.kodi_movie_images {
         for (kind, size, path) in [("poster", "original", &movie.poster_path), ("fanart", "original", &movie.fanart_path)] {
             let cached = crate::tmdb::image_path(kind, movie.tmdb_id);
-            let dest = dir.join(format!("{kind}.jpg"));
+            let dest = match (&stem, movie.loose) {
+                (Some(s), true) => dir.join(format!("{s}-{kind}.jpg")),
+                _ => dir.join(format!("{kind}.jpg")),
+            };
             if dest.exists() || path.is_empty() {
                 continue;
             }

@@ -632,7 +632,12 @@ impl App {
                 };
                 stat(ui, "Profile", profile.as_ref().map(|p| p.name.clone()).unwrap_or_default());
                 stat(ui, "Min. availability", movie.minimum_availability.label().into());
-                stat(ui, "Path", if movie.path.is_empty() { "—".into() } else { movie.path.clone() });
+                let shown = match (movie.loose, self.core.lib().file_for(&movie)) {
+                    (true, Some(f)) => f.path.clone(),
+                    _ if movie.path.is_empty() => "—".into(),
+                    _ => movie.path.clone(),
+                };
+                stat(ui, "Path", shown);
                 stat(ui, "Size on disk", file.as_ref().map(|f| crate::decision::human_size(f.size)).unwrap_or_else(|| "—".into()));
                 stat(ui, "In cinemas", common::date_label(movie.in_cinemas, &self.cfg));
                 stat(ui, "Digital / physical", format!("{} / {}", common::date_label(movie.digital_release, &self.cfg), common::date_label(movie.physical_release, &self.cfg)));

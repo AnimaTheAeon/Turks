@@ -13,6 +13,12 @@ use crate::notify::{self, Event};
 #[derive(Clone, Debug)]
 pub struct AddOptions {
     pub root_folder: String,
+    /// A folder inside the root folder (e.g. "Horror") to keep the movie in
+    /// as a loose file, with no folder of its own. Empty: its own folder.
+    pub genre_folder: String,
+    /// Library Import: the movie already lives here (its folder, or for a
+    /// loose movie its shared folder). Nothing is created or moved.
+    pub existing: Option<(String, bool)>,
     pub quality_profile_id: Id,
     pub minimum_availability: Availability,
     pub monitor: ListMonitor,
@@ -34,9 +40,18 @@ pub fn add_movie(core: &Core, tmdb_id: i64, opts: &AddOptions) -> Result<Movie, 
     movie.tags = opts.tags.clone();
     movie.added = Some(Utc::now());
     movie.last_info_sync = Some(Utc::now());
-    movie.path = Path::new(&opts.root_folder).join(crate::naming::folder_name(&movie, &cfg)).display().to_string();
-    if cfg.create_empty_folders {
-        let _ = std::fs::create_dir_all(&movie.path);
+    let genre = opts.genre_folder.trim().trim_matches(['/', '\\']);
+    if let Some((path, loose)) = &opts.existing {
+        movie.path = path.clone();
+        movie.loose = *loose;
+    } else if genre.is_empty() {
+        movie.path = Path::new(&opts.root_folder).join(crate::naming::folder_name(&movie, &cfg)).display().to_string();
+        if cfg.create_empty_folders {
+            let _ = std::fs::create_dir_all(&movie.path);
+        }
+    } else {
+        movie.path = Path::new(&opts.root_folder).join(genre).display().to_string();
+        movie.loose = true;
     }
     let movie = core.save(movie);
     cache_images(&movie);
@@ -87,6 +102,7 @@ pub fn refresh_one(core: &Core, id: Id) -> Result<(), String> {
         quality_profile_id: old.quality_profile_id,
         root_folder: old.root_folder.clone(),
         path: old.path.clone(),
+        loose: old.loose,
         tags: old.tags.clone(),
         added: old.added,
         last_search: old.last_search,
@@ -143,7 +159,8 @@ pub fn rescan_one(core: &Core, id: Id) -> Result<(), String> {
     let Some(mut movie) = core.movie(id) else { return Ok(()) };
     let folder = PathBuf::from(&movie.path);
     // Existing file gone?
-    if let Some(file) = core.lib().file_for(&movie).cloned() {
+    let recorded = core.lib().file_for(&movie).cloned();
+    if let Some(file) = recorded {
         if !Path::new(&file.path).exists() {
             core.remove::<MovieFile>(file.id);
             movie.movie_file_id = None;
@@ -170,6 +187,25 @@ pub fn rescan_one(core: &Core, id: Id) -> Result<(), String> {
         }
     }
     if !folder.is_dir() {
+        return Ok(());
+    }
+    if movie.loose {
+        // A shared folder: only take a loose video whose name says it's this
+        // movie and that no other movie already has.
+        let lib = core.lib().clone();
+        let taken: std::collections::HashSet<PathBuf> = lib.files.values().map(|f| PathBuf::from(&f.path)).collect();
+        let mut vids: Vec<PathBuf> = import::loose_videos(&folder).into_iter().filter(|v| !taken.contains(v)).collect();
+        vids.sort_by_key(|p| std::cmp::Reverse(std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)));
+        for v in vids {
+            let named = import::evaluate(&lib, &cfg, &v, None, None, true);
+            if named.movie_id != Some(id) || named.rejections.iter().any(|r| r == "Sample file") {
+                continue;
+            }
+            let mut dec = import::evaluate(&lib, &cfg, &v, Some(id), None, true);
+            dec.rejections.clear();
+            import::import(core, &dec, Transfer::InPlace, None)?;
+            break;
+        }
         return Ok(());
     }
     // No file recorded: adopt the largest video in the folder.
@@ -201,10 +237,16 @@ pub fn rescan_movies(core: &Core, ids: &[Id], cid: u64) -> Result<String, String
 pub fn delete_movie(core: &Core, id: Id, delete_files: bool, add_exclusion: bool) -> Result<(), String> {
     let Some(movie) = core.movie(id) else { return Ok(()) };
     let cfg = core.cfg();
+    let file = core.lib().file_for(&movie).cloned();
     if let Some(f) = movie.movie_file_id {
         core.remove::<MovieFile>(f);
     }
-    if delete_files && !movie.path.is_empty() && Path::new(&movie.path).exists() {
+    if delete_files && movie.loose {
+        // Only this movie's own files; the shared folder and everything else in it stay.
+        if let Some(f) = &file {
+            import::recycle_with_sidecars(Path::new(&f.path), &cfg)?;
+        }
+    } else if delete_files && !movie.path.is_empty() && Path::new(&movie.path).exists() {
         import::recycle(Path::new(&movie.path), &cfg)?;
     }
     if add_exclusion {
@@ -225,7 +267,11 @@ pub fn delete_movie(core: &Core, id: Id, delete_files: bool, add_exclusion: bool
 pub fn delete_file(core: &Core, file_id: Id, reason: &str) -> Result<(), String> {
     let cfg = core.cfg();
     let Some(file) = core.lib().files.get(&file_id).cloned() else { return Ok(()) };
-    import::recycle(Path::new(&file.path), &cfg)?;
+    if core.movie(file.movie_id).is_some_and(|m| m.loose) {
+        import::recycle_with_sidecars(Path::new(&file.path), &cfg)?;
+    } else {
+        import::recycle(Path::new(&file.path), &cfg)?;
+    }
     core.remove::<MovieFile>(file_id);
     if let Some(mut m) = core.movie(file.movie_id) {
         m.movie_file_id = None;
@@ -251,6 +297,41 @@ pub fn move_movie(core: &Core, id: Id, new_path: &str, move_files: bool) -> Resu
     let Some(mut m) = core.movie(id) else { return Ok(()) };
     let old = PathBuf::from(&m.path);
     let new = PathBuf::from(new_path);
+    if m.loose {
+        // Move just the video and its own files into the new folder.
+        if move_files && old != new {
+            let file = core.lib().file_for(&m).cloned();
+            if let Some(mut f) = file {
+                std::fs::create_dir_all(&new).map_err(|e| e.to_string())?;
+                let src = PathBuf::from(&f.path);
+                let dst = new.join(src.file_name().unwrap_or_default());
+                if dst.exists() {
+                    return Err(format!("{} already exists", dst.display()));
+                }
+                for side in import::sidecars(&src) {
+                    if let Ok(rel) = side.strip_prefix(&old) {
+                        let target = new.join(rel);
+                        if let Some(p) = target.parent() {
+                            let _ = std::fs::create_dir_all(p);
+                        }
+                        let _ = import::transfer(&side, &target, Transfer::Move);
+                    }
+                }
+                import::transfer(&src, &dst, Transfer::Move)?;
+                f.path = dst.display().to_string();
+                core.save(f);
+            }
+        } else if let Some(mut f) = {
+            let file = core.lib().file_for(&m).cloned();
+            file
+        } {
+            f.path = new.join(&f.relative_path).display().to_string();
+            core.save(f);
+        }
+        m.path = new.display().to_string();
+        core.save(m);
+        return Ok(());
+    }
     if move_files && old.exists() && old != new {
         if new.exists() && std::fs::read_dir(&new).map(|mut d| d.next().is_some()).unwrap_or(false) {
             return Err(format!("{} already exists and isn't empty", new.display()));
@@ -272,7 +353,8 @@ pub fn move_movie(core: &Core, id: Id, new_path: &str, move_files: bool) -> Resu
     if let Some(root) = new.parent() {
         m.root_folder = root.display().to_string();
     }
-    if let Some(mut f) = core.lib().file_for(&m).cloned() {
+    let file = core.lib().file_for(&m).cloned();
+    if let Some(mut f) = file {
         f.path = new.join(&f.relative_path).display().to_string();
         core.save(f);
     }
@@ -402,6 +484,8 @@ pub fn add_missing_from_collection(core: &Core, c: &MovieCollection) -> usize {
     }
     let excluded: Vec<i64> = core.lib().exclusions.values().map(|e| e.tmdb_id).collect();
     let opts = AddOptions {
+        genre_folder: String::new(),
+        existing: None,
         root_folder: c.root_folder.clone(),
         quality_profile_id: c.quality_profile_id,
         minimum_availability: c.minimum_availability,
@@ -435,6 +519,8 @@ pub fn refresh_collections(core: &Core, cid: u64) -> Result<String, String> {
     let default_opts = {
         let lib = core.lib();
         AddOptions {
+            genre_folder: String::new(),
+            existing: None,
             root_folder: lib.root_folders.values().next().map(|r| r.path.clone()).unwrap_or_default(),
             quality_profile_id: lib.profiles.keys().next().copied().unwrap_or(0),
             minimum_availability: Availability::Released,
@@ -510,4 +596,56 @@ pub fn clean_recycle_bin(core: &Core) -> Result<String, String> {
         }
     }
     Ok(format!("Removed {removed} items"))
+}
+
+// ---------------------------------------------------------------- library import
+
+/// One row of Library Import: a TMDb match for a folder or a loose file.
+#[derive(Clone, Debug)]
+pub struct LibraryRow {
+    pub tmdb_id: i64,
+    /// The movie's folder, or for a loose movie the video file itself.
+    pub path: String,
+    pub loose: bool,
+}
+
+/// Adds each row as a movie that keeps its existing folder or file where it
+/// is (no renaming, no moving). Returns how many were added.
+pub fn import_library(core: &Core, rows: Vec<LibraryRow>, opts: &AddOptions) -> usize {
+    let mut done = 0;
+    for row in rows {
+        let existing = core.lib().movie_by_tmdb(row.tmdb_id).cloned();
+        if let Some(m) = existing {
+            core.toast(format!("{} is already in the library; skipped {}", m.display(), row.path));
+            continue;
+        }
+        let video = PathBuf::from(&row.path);
+        let folder = if row.loose { video.parent().map(Path::to_path_buf).unwrap_or_default() } else { video.clone() };
+        let add = AddOptions { genre_folder: String::new(), existing: Some((folder.display().to_string(), row.loose)), search: false, ..opts.clone() };
+        let m = match add_movie(core, row.tmdb_id, &add) {
+            Ok(m) => m,
+            Err(e) => {
+                core.toast(format!("Couldn't add {}: {e}", row.path));
+                continue;
+            }
+        };
+        let result = if row.loose {
+            // This exact file, whatever its name says.
+            if m.movie_file_id.is_some() {
+                Ok(())
+            } else {
+                let cfg = core.cfg();
+                let mut dec = import::evaluate(&core.lib(), &cfg, &video, Some(m.id), None, true);
+                dec.rejections.clear();
+                import::import(core, &dec, Transfer::InPlace, None).map(|_| ())
+            }
+        } else {
+            rescan_one(core, m.id)
+        };
+        match result {
+            Ok(()) => done += 1,
+            Err(e) => core.toast(format!("Added {} but couldn't link its file: {e}", m.display())),
+        }
+    }
+    done
 }

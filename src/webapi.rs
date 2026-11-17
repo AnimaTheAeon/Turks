@@ -364,6 +364,13 @@ fn route_request(core: &Core, post: bool, route: &str, q: &HashMap<String, Strin
             let c = core.lib().collections.get(&i(&v, "id")).cloned().ok_or("That collection is gone")?;
             ok(json!({ "added": crate::library::add_missing_from_collection(core, &c) }))
         }
+        (false, "import/groups") => {
+            let root = q.get("root").cloned().unwrap_or_default();
+            let folders = crate::import::group_folders(&core.lib(), Path::new(&root));
+            let genres: Vec<String> = q.get("genres").map(|g| g.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default();
+            let suggested = crate::tmdb::suggest_genre_folder(&genres, &folders);
+            ok(json!({ "folders": folders, "suggested": suggested }))
+        }
         (false, "import/unmapped") => {
             let root = q.get("root").cloned().unwrap_or_default();
             ok(json!(crate::import::unmapped_folders(&core.lib(), Path::new(&root))))
@@ -374,7 +381,7 @@ fn route_request(core: &Core, post: bool, route: &str, q: &HashMap<String, Strin
             let year: i32 = q.get("year").and_then(|y| y.parse().ok()).unwrap_or(0);
             let tmdb: i64 = q.get("tmdb").and_then(|y| y.parse().ok()).unwrap_or(0);
             let hits = if tmdb > 0 {
-                t.movie(tmdb).map(|m| vec![crate::tmdb::SearchHit { tmdb_id: m.tmdb_id, title: m.title, original_title: m.original_title, year: m.year, overview: m.overview, poster_path: m.poster_path, ..Default::default() }])?
+                t.movie(tmdb).map(|m| vec![crate::tmdb::SearchHit { tmdb_id: m.tmdb_id, title: m.title, original_title: m.original_title, year: m.year, overview: m.overview, poster_path: m.poster_path, genres: m.genres, ..Default::default() }])?
             } else {
                 t.search_title_year(&title, year)?
             };
@@ -704,7 +711,7 @@ fn movies(core: &Core) -> Value {
                 "status": m.status, "in_cinemas": m.in_cinemas, "digital_release": m.digital_release, "physical_release": m.physical_release,
                 "ratings": m.ratings, "popularity": m.popularity, "poster_path": m.poster_path, "monitored": m.monitored,
                 "minimum_availability": m.minimum_availability, "quality_profile_id": m.quality_profile_id, "root_folder": m.root_folder,
-                "path": m.path, "tags": m.tags, "added": m.added, "collection": m.collection, "original_language": m.original_language,
+                "path": m.path, "loose": m.loose, "tags": m.tags, "added": m.added, "collection": m.collection, "original_language": m.original_language,
                 "available": m.is_available(cfg.availability_delay_days),
                 "downloading": downloading.contains(&m.id),
                 "file": f.map(|f| json!({ "id": f.id, "size": f.size, "quality": f.quality, "quality_name": crate::quality::full_name(&f.quality), "relative_path": f.relative_path, "release_group": f.release_group, "languages": f.languages, "edition": f.edition, "media_info": f.media_info })),
@@ -809,7 +816,9 @@ fn edit_movies(core: &Core, v: Value) -> Result<Value, String> {
 fn add_options(core: &Core, v: &Value) -> AddOptions {
     let cfg = core.cfg();
     AddOptions {
+        existing: None,
         root_folder: if s(v, "root_folder").is_empty() { cfg.last_add_root.clone() } else { s(v, "root_folder").to_string() },
+        genre_folder: s(v, "genre_folder").to_string(),
         quality_profile_id: v.get("quality_profile_id").and_then(|x| x.as_i64()).unwrap_or(cfg.last_add_profile),
         minimum_availability: v.get("minimum_availability").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or(cfg.last_add_availability),
         monitor: v.get("monitor").and_then(|x| serde_json::from_value(x.clone()).ok()).unwrap_or(ListMonitor::MovieOnly),
@@ -835,29 +844,16 @@ fn add_movie(core: &Core, v: Value) -> Result<Value, String> {
 }
 
 fn library_import(core: &Core, v: Value) -> Result<Value, String> {
-    let opts = AddOptions { search: false, ..add_options(core, &v) };
-    let rows: Vec<(i64, String)> = v
+    let opts = AddOptions { search: false, genre_folder: String::new(), ..add_options(core, &v) };
+    let rows: Vec<crate::library::LibraryRow> = v
         .get("items")
         .and_then(|x| x.as_array())
-        .map(|a| a.iter().map(|r| (i(r, "tmdb_id"), s(r, "path").to_string())).filter(|(t, _)| *t > 0).collect())
+        .map(|a| a.iter().map(|r| crate::library::LibraryRow { tmdb_id: i(r, "tmdb_id"), path: s(r, "path").to_string(), loose: b(r, "loose") }).filter(|r| r.tmdb_id > 0).collect())
         .unwrap_or_default();
     let core = core.clone();
     let n = rows.len();
     std::thread::spawn(move || {
-        let mut done = 0;
-        for (tmdb, path) in rows {
-            match crate::library::add_movie(&core, tmdb, &opts) {
-                Ok(m) => {
-                    // Keep the existing folder name instead of renaming it.
-                    if m.path != path {
-                        let _ = crate::library::move_movie(&core, m.id, &path, false);
-                    }
-                    let _ = crate::library::rescan_one(&core, m.id);
-                    done += 1;
-                }
-                Err(e) => core.toast(format!("Couldn't add {path}: {e}")),
-            }
-        }
+        let done = crate::library::import_library(&core, rows, &opts);
         core.toast(format!("Imported {done} movies."));
     });
     Ok(json!({ "started": n }))

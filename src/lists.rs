@@ -175,6 +175,8 @@ pub fn sync_all(core: &Core, cid: u64) -> Result<String, String> {
                 continue;
             }
             let opts = AddOptions {
+                genre_folder: String::new(),
+                existing: None,
                 root_folder: list.root_folder.clone(),
                 quality_profile_id: list.quality_profile_id,
                 minimum_availability: list.minimum_availability,

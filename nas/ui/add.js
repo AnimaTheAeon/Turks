@@ -19,16 +19,29 @@ function addDialog(hit) {
       monitor: "MovieOnly",
       tags: [],
       search: cfg.last_add_search !== false,
+      genre_folder: "",
     };
     let added = null;
+    // Genre folder: put the movie loose in e.g. "Horror", suggested from its genres.
+    const genreSlot = el("div");
+    async function loadGenres() {
+      let g = { folders: [], suggested: null };
+      try { g = await api("import/groups", undefined, { root: rec.root_folder, genres: (hit.genres || []).join(",") }); } catch (e) { /* older service */ }
+      rec.genre_folder = g.suggested || "";
+      genreSlot.replaceChildren(g.folders.length ? field("Genre folder", "Put the movie straight into a genre folder as a single file, next to your other movies of that genre. \u201cIts own folder\u201d makes a folder for it instead.",
+        select([["", "Its own folder"], ...g.folders.map((f) => [f, f])], rec.genre_folder, (v) => { rec.genre_folder = v; })) : "");
+    }
+    const rootSel = select(rootOptions(), rec.root_folder, (v) => { rec.root_folder = v; loadGenres(); });
+    loadGenres();
     const thumb = el("div.thumb");
     thumb.append(img("poster", hit.tmdb_id, hit.poster_path));
     const m = openModal({
       title: `${hit.title}${hit.year ? " (" + hit.year + ")" : ""}`,
       body: [
         el("div.hit", { style: { border: 0, background: "none", padding: 0 } }, thumb, el("div.body", el("div.o", { style: { maxHeight: "none" } }, hit.overview || ""))),
+        field("Root folder", "", rootSel),
+        genreSlot,
         ...specRows(rec, [
-          ["root_folder", "Root folder", "select", "", rootOptions],
           ["quality_profile_id", "Quality profile", "select", "", profileOptions],
           ["minimum_availability", "Minimum availability", "select", "When Turks starts looking for it.", availOptions],
           ["monitor", "Monitor", "select", "", [["MovieOnly", "Movie only"], ["MovieAndCollection", "Movie and collection"], ["None", "None"]]],
@@ -103,7 +116,7 @@ async function libraryImport(body) {
   const opts = { root_folder: roots[0].path, quality_profile_id: (Turks.lists.profile[0] || {}).id, minimum_availability: "Released", monitor: "MovieOnly" };
   const list = el("div");
   const importBtn = el("button.big.primary", { disabled: true }, "Import");
-  body.append(el("p.sub", "Folders in a root folder that aren't movies in Turks yet. Turks matches each to TMDb; check the matches, then import. Folders keep their names."),
+  body.append(el("p.sub", "Movies in a root folder that aren't in Turks yet, including inside genre folders: each video file and each movie folder in them is its own row. Turks matches each to TMDb; check the matches, then import. Nothing is moved or renamed."),
     el("div.toolbar",
       select(rootOptions(), opts.root_folder, (v) => { opts.root_folder = v; scan(); }),
       select(profileOptions(), opts.quality_profile_id, (v) => { opts.quality_profile_id = Number(v); }),
@@ -116,14 +129,15 @@ async function libraryImport(body) {
   async function scan() {
     list.replaceChildren(el("div.row", el("span.spin"), "Looking at folders…"));
     const found = await api("import/unmapped", undefined, { root: opts.root_folder });
-    if (!found.length) { list.replaceChildren(el("div.empty", "Every folder here is already in Turks.")); rows = []; refresh(); return; }
+    if (!found.length) { list.replaceChildren(el("div.empty", "Every movie here is already in Turks.")); rows = []; refresh(); return; }
     rows = found.map((f) => ({ f, on: false, hit: null, hits: [] }));
     const tbody = el("tbody");
-    list.replaceChildren(el("table", el("thead", el("tr", el("th"), el("th", "Folder"), el("th", "Match"), el("th", "Files"))), tbody));
+    const grouped = rows.some((r) => r.f.group);
+    list.replaceChildren(el("table", el("thead", el("tr", el("th"), grouped ? el("th", "Genre") : null, el("th", "Folder or file"), el("th", "Match"), el("th", "Files"))), tbody));
     for (const r of rows) {
       const matchCell = el("td", el("span.spin"));
       const box = check("", false, (v) => { r.on = v; refresh(); });
-      tbody.append(el("tr", el("td", box), el("td.wrap", r.f.name), matchCell, el("td", r.f.video_count)));
+      tbody.append(el("tr", el("td", box), grouped ? el("td.dim", r.f.group || "\u2014") : null, el("td.wrap", r.f.name), matchCell, el("td", r.f.loose ? "1" : r.f.video_count)));
       r.draw = () => {
         if (!r.hits.length) { matchCell.replaceChildren(el("span.warn", "No match"), " ", el("button.small", { onclick: () => manualMatch(r) }, "Search…")); return; }
         matchCell.replaceChildren(select(r.hits.map((h, i) => [i, `${h.title} (${h.year || "?"})`]), r.hits.indexOf(r.hit), (v) => { r.hit = r.hits[Number(v)]; }), " ", el("button.small", { onclick: () => manualMatch(r) }, "Search…"));
@@ -159,7 +173,7 @@ async function libraryImport(body) {
     go2();
   }
   importBtn.onclick = async () => {
-    const items = rows.filter((r) => r.on && r.hit).map((r) => ({ tmdb_id: r.hit.tmdb_id, path: r.f.path }));
+    const items = rows.filter((r) => r.on && r.hit).map((r) => ({ tmdb_id: r.hit.tmdb_id, path: r.f.path, loose: !!r.f.loose }));
     if (await act("import/library", { ...opts, items }, null, `Importing ${items.length} movies in the background…`)) scan();
   };
   scan();

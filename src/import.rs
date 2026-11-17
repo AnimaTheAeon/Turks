@@ -43,6 +43,64 @@ impl ImportDecision {
 
 // ---------------------------------------------------------------- file helpers
 
+/// Videos sitting directly in a folder (not in subfolders), samples left out.
+pub fn loose_videos(dir: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file() && crate::quality::is_video(p))
+        .filter(|p| {
+            let n = p.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+            !(n == "sample" || n.ends_with("-sample") || n.ends_with(".sample") || n.starts_with("sample-"))
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// Files that belong to a loose video because they share its name: subtitles
+/// ("Movie (2007).en.srt", also in a Subs folder next to it), its .nfo and
+/// "Movie (2007)-poster.jpg"-style images. Never another movie's files.
+pub fn sidecars(video: &Path) -> Vec<PathBuf> {
+    let Some(dir) = video.parent() else { return vec![] };
+    let Some(stem) = video.file_stem().map(|s| s.to_string_lossy().to_lowercase()) else { return vec![] };
+    let dotted = format!("{stem}.");
+    let dashed = [format!("{stem}-poster."), format!("{stem}-fanart."), format!("{stem}-thumb."), format!("{stem}-landscape.")];
+    let mut out = Vec::new();
+    let mut look = |d: &Path| {
+        for e in std::fs::read_dir(d).into_iter().flatten().flatten() {
+            let p = e.path();
+            if !p.is_file() || p == video || crate::quality::is_video(&p) {
+                continue;
+            }
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            if name.starts_with(&dotted) || dashed.iter().any(|x| name.starts_with(x.as_str())) {
+                out.push(p);
+            }
+        }
+    };
+    look(dir);
+    for sub in ["Subs", "subs", "Subtitles", "subtitles"] {
+        let d = dir.join(sub);
+        if d.is_dir() {
+            look(&d);
+        }
+    }
+    out
+}
+
+/// Recycles a loose movie's video and the files that share its name.
+pub fn recycle_with_sidecars(video: &Path, cfg: &Config) -> Result<(), String> {
+    for side in sidecars(video) {
+        if let Err(e) = recycle(&side, cfg) {
+            crate::applog::warn(format!("Couldn't remove {}: {e}", side.display()));
+        }
+    }
+    recycle(video, cfg)
+}
+
 pub fn video_files(dir: &Path) -> Vec<PathBuf> {
     if dir.is_file() {
         return if crate::quality::is_video(dir) { vec![dir.to_path_buf()] } else { vec![] };
@@ -421,12 +479,20 @@ pub fn import(core: &Core, dec: &ImportDecision, mode: Transfer, download: Optio
         dec.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
     };
     let dest = if mode == Transfer::InPlace { dec.path.clone() } else { folder.join(&file_name) };
+    if mode != Transfer::InPlace {
+        let lib = core.lib();
+        if let Some(other) = lib.files.values().find(|f| f.movie_id != movie_id && Path::new(&f.path) == dest) {
+            return Err(format!("{} already belongs to another movie (file {})", dest.display(), other.relative_path));
+        }
+    }
 
     // Out with the old file (upgrade).
     let old = core.lib().file_for(&movie).cloned();
     if let Some(old) = &old {
         if Path::new(&old.path) != dest && Path::new(&old.path) != dec.path {
-            if let Err(e) = recycle(Path::new(&old.path), &cfg) {
+            // A loose movie's old subtitles etc. go with its old file.
+            let gone = if movie.loose { recycle_with_sidecars(Path::new(&old.path), &cfg) } else { recycle(Path::new(&old.path), &cfg) };
+            if let Err(e) = gone {
                 crate::applog::warn(format!("Couldn't remove the old file {}: {e}", old.path));
             }
             core.history(History {
@@ -526,53 +592,175 @@ pub fn manual_candidates(core: &Core, folder: &Path, movie_hint: Option<Id>) -> 
     let cfg = core.cfg();
     let lib = core.lib();
     let download = lib.downloads.values().find(|d| !d.output_path.is_empty() && folder.starts_with(&d.output_path)).cloned();
-    video_files(folder).iter().map(|f| evaluate(&lib, &cfg, f, movie_hint.or(download.as_ref().map(|d| d.movie_id)), download.as_ref(), true)).collect()
+    // Files other movies already own (e.g. in a shared genre folder) aren't offered.
+    let hint = movie_hint.or(download.as_ref().map(|d| d.movie_id));
+    let taken: std::collections::HashSet<PathBuf> = lib.files.values().filter(|f| Some(f.movie_id) != hint).map(|f| PathBuf::from(&f.path)).collect();
+    video_files(folder).iter().filter(|f| !taken.contains(*f)).map(|f| evaluate(&lib, &cfg, f, hint, download.as_ref(), true)).collect()
 }
 
-/// A folder in a root folder that isn't a movie yet (Library Import).
+/// Something in a root folder that isn't a movie yet (Library Import): a
+/// movie folder, or a loose video file inside a genre folder.
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct Unmapped {
+    /// The movie's folder, or for a loose movie the video file.
     pub path: PathBuf,
     pub name: String,
     pub parsed_title: String,
     pub parsed_year: i32,
     pub tmdb_id_hint: i64,
     pub video_count: usize,
+    /// A single file that stays where it is, in a shared (genre) folder.
+    pub loose: bool,
+    /// The genre folder it sits in ("" when directly in the root folder).
+    pub group: String,
 }
 
+const EXTRAS_DIRS: &[&str] = &["extras", "featurettes", "behind the scenes", "deleted scenes", "trailers", "samples", "sample", "subs", "subtitles", "@eadir", ".@__thumb"];
+
+fn skip_name(name: &str) -> bool {
+    name.starts_with('.') || name.starts_with('@') || name.starts_with('$') || name.eq_ignore_ascii_case("System Volume Information") || name.eq_ignore_ascii_case("#recycle")
+}
+
+fn norm(p: &Path) -> String {
+    p.display().to_string().to_lowercase().replace('\\', "/").trim_end_matches('/').to_string()
+}
+
+/// Subfolders of `dir` that hold videos (extras and subtitle folders aside).
+fn movie_subdirs(dir: &Path) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter(|e| {
+            let n = e.file_name().to_string_lossy().to_string();
+            !skip_name(&n) && !EXTRAS_DIRS.contains(&n.to_lowercase().as_str())
+        })
+        .map(|e| e.path())
+        .filter(|p| !video_files(p).is_empty())
+        .collect();
+    out.sort();
+    out
+}
+
+fn has_year(name: &str) -> bool {
+    parser::parse_movie_title(name, true).is_some_and(|p| p.year > 1880)
+}
+
+/// Is this folder a group of movies (like "Horror") rather than one movie?
+/// A folder named like a movie, "Title (Year)", is always one movie. Otherwise
+/// it's a group when it holds two or more movies (loose videos or movie
+/// subfolders), or a single loose video named like a movie with a year.
+pub fn is_group_folder(dir: &Path) -> bool {
+    let name = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    if has_year(&name) {
+        return false;
+    }
+    let loose = loose_videos(dir);
+    let subs = movie_subdirs(dir);
+    match loose.len() + subs.len() {
+        0 => false,
+        1 => !subs.is_empty() || loose.first().and_then(|v| v.file_stem()).is_some_and(|s| has_year(&s.to_string_lossy())),
+        _ => true,
+    }
+}
+
+fn unmapped_folder(p: &Path, group: &str) -> Option<Unmapped> {
+    let name = p.file_name()?.to_string_lossy().to_string();
+    let vids = video_files(p);
+    if vids.is_empty() {
+        return None;
+    }
+    let parsed = parser::parse_movie_title(&name, true).or_else(|| vids.first().and_then(|v| parser::parse_movie_path(v)));
+    Some(Unmapped {
+        path: p.to_path_buf(),
+        parsed_title: parsed.as_ref().map(|p| p.primary_title().to_string()).unwrap_or_else(|| name.clone()),
+        parsed_year: parsed.as_ref().map(|p| p.year).unwrap_or(0),
+        tmdb_id_hint: Regex_tmdb(&name),
+        name,
+        video_count: vids.len(),
+        loose: false,
+        group: group.to_string(),
+    })
+}
+
+fn unmapped_file(v: &Path, group: &str) -> Unmapped {
+    let name = v.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let parsed = parser::parse_movie_path(v).or_else(|| parser::parse_movie_title(&name, true));
+    Unmapped {
+        path: v.to_path_buf(),
+        parsed_title: parsed.as_ref().map(|p| p.primary_title().to_string()).filter(|t| !t.is_empty()).unwrap_or_else(|| name.clone()),
+        parsed_year: parsed.as_ref().map(|p| p.year).unwrap_or(0),
+        tmdb_id_hint: Regex_tmdb(&name),
+        name: v.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+        video_count: 1,
+        loose: true,
+        group: group.to_string(),
+    }
+}
+
+/// Everything in a root folder that isn't in the library yet. Genre folders
+/// are looked into: each loose video and each movie folder in them is its own row.
 pub fn unmapped_folders(lib: &Library, root: &Path) -> Vec<Unmapped> {
-    let known: std::collections::HashSet<String> = lib.movies.values().map(|m| m.path.to_lowercase().replace('\\', "/").trim_end_matches('/').to_string()).collect();
+    let folders: std::collections::HashSet<String> = lib.movies.values().filter(|m| !m.loose).map(|m| norm(Path::new(&m.path))).collect();
+    let files: std::collections::HashSet<String> = lib.files.values().map(|f| norm(Path::new(&f.path))).collect();
     let mut out = Vec::new();
+    let free_file = |v: &Path| !files.contains(&norm(v));
+    let free_dir = |d: &Path| !folders.contains(&norm(d));
+    // Loose videos right in the root folder.
+    for v in loose_videos(root) {
+        if free_file(&v) {
+            out.push(unmapped_file(&v, ""));
+        }
+    }
     for e in std::fs::read_dir(root).into_iter().flatten().flatten() {
         let p = e.path();
-        if !p.is_dir() {
-            continue;
-        }
         let name = e.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') || name.starts_with('@') || name.starts_with('$') || name.eq_ignore_ascii_case("System Volume Information") {
+        if !p.is_dir() || skip_name(&name) || !free_dir(&p) {
             continue;
         }
-        let key = p.display().to_string().to_lowercase().replace('\\', "/").trim_end_matches('/').to_string();
-        if known.contains(&key) {
-            continue;
+        if is_group_folder(&p) {
+            for v in loose_videos(&p) {
+                if free_file(&v) {
+                    out.push(unmapped_file(&v, &name));
+                }
+            }
+            for d in movie_subdirs(&p) {
+                if free_dir(&d) {
+                    out.extend(unmapped_folder(&d, &name));
+                }
+            }
+        } else if let Some(u) = unmapped_folder(&p, "") {
+            out.push(u);
         }
-        let vids = video_files(&p);
-        if vids.is_empty() {
-            continue;
-        }
-        let parsed = parser::parse_movie_title(&name, true).or_else(|| vids.first().and_then(|v| parser::parse_movie_path(v)));
-        let tmdb_hint = Regex_tmdb(&name);
-        out.push(Unmapped {
-            path: p,
-            parsed_title: parsed.as_ref().map(|p| p.primary_title().to_string()).unwrap_or_else(|| name.clone()),
-            parsed_year: parsed.as_ref().map(|p| p.year).unwrap_or(0),
-            name,
-            tmdb_id_hint: tmdb_hint,
-            video_count: vids.len(),
-        });
     }
-    out.sort_by_key(|a| a.name.to_lowercase());
+    out.sort_by_key(|a| (a.group.to_lowercase(), a.name.to_lowercase()));
     out
+}
+
+/// Genre folders in a root folder: folders that hold several movies, plus any
+/// folder already used for loose movies. For "Add Movie › Genre folder".
+pub fn group_folders(lib: &Library, root: &Path) -> Vec<String> {
+    let mut out: std::collections::BTreeSet<String> = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .map(|e| (e.path(), e.file_name().to_string_lossy().to_string()))
+        .filter(|(p, n)| !skip_name(n) && is_group_folder(p))
+        .map(|(_, n)| n)
+        .collect();
+    for m in lib.movies.values().filter(|m| m.loose) {
+        if let Ok(rel) = Path::new(&m.path).strip_prefix(root) {
+            let r = rel.display().to_string();
+            if !r.is_empty() {
+                out.insert(r);
+            }
+        }
+    }
+    let mut v: Vec<String> = out.into_iter().collect();
+    v.sort_by_key(|s| s.to_lowercase());
+    v
 }
 
 #[allow(non_snake_case)]
@@ -587,4 +775,59 @@ fn Regex_tmdb(name: &str) -> i64 {
         }
     }
     0
+}
+
+#[cfg(test)]
+mod loose_tests {
+    use super::*;
+
+    fn touch(p: &Path) {
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, b"x").unwrap();
+    }
+
+    #[test]
+    fn genre_folders_and_sidecars() {
+        let root = std::env::temp_dir().join(format!("turks-loose-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let horror = root.join("Horror");
+        touch(&horror.join("Scream (1996).mkv"));
+        touch(&horror.join("Scream (1996).en.srt"));
+        touch(&horror.join("Scream (1996)-poster.jpg"));
+        touch(&horror.join("Scream 2 (1997).mkv"));
+        touch(&horror.join("Scream 2 (1997).en.srt"));
+        touch(&horror.join("Alien (1979)/Alien (1979).mkv"));
+        touch(&root.join("Inception (2010)/Inception.mkv"));
+        touch(&root.join("Comedy/Superbad (2007).mkv"));
+        // Genre folders vs movie folders.
+        assert!(is_group_folder(&horror));
+        assert!(is_group_folder(&root.join("Comedy")), "one loose movie named with a year is still a genre folder");
+        assert!(!is_group_folder(&root.join("Inception (2010)")));
+        // Only files that share Scream's name belong to it, never Scream 2's.
+        let mut s: Vec<String> = sidecars(&horror.join("Scream (1996).mkv")).iter().map(|p| p.file_name().unwrap().to_string_lossy().to_string()).collect();
+        s.sort();
+        assert_eq!(s, vec!["Scream (1996)-poster.jpg", "Scream (1996).en.srt"]);
+        // The scan lists each movie on its own row.
+        let lib = Library::default();
+        let rows = unmapped_folders(&lib, &root);
+        let names: Vec<(String, bool, String)> = rows.iter().map(|u| (u.name.clone(), u.loose, u.group.clone())).collect();
+        assert!(names.contains(&("Scream (1996).mkv".into(), true, "Horror".into())));
+        assert!(names.contains(&("Scream 2 (1997).mkv".into(), true, "Horror".into())));
+        assert!(names.contains(&("Alien (1979)".into(), false, "Horror".into())));
+        assert!(names.contains(&("Inception (2010)".into(), false, String::new())));
+        assert!(names.contains(&("Superbad (2007).mkv".into(), true, "Comedy".into())));
+        assert_eq!(rows.len(), 5);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn genre_suggestion() {
+        let folders: Vec<String> = ["Action Adventure", "Animated", "Horror", "Suspense", "Comedy"].map(String::from).to_vec();
+        let g = |v: &[&str]| crate::tmdb::suggest_genre_folder(&v.iter().map(|s| s.to_string()).collect::<Vec<_>>(), &folders);
+        assert_eq!(g(&["Horror", "Thriller"]).as_deref(), Some("Horror"));
+        assert_eq!(g(&["Action", "Thriller"]).as_deref(), Some("Action Adventure"));
+        assert_eq!(g(&["Animation", "Family"]).as_deref(), Some("Animated"));
+        assert_eq!(g(&["Thriller"]).as_deref(), Some("Suspense"));
+        assert_eq!(g(&["Science Fiction"]), None);
+    }
 }
