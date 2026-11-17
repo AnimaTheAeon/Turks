@@ -197,7 +197,7 @@ impl App {
             crate::updater::State::Checking => {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("Checking GitHub…");
+                    ui.label("Checking for updates…");
                 });
             }
             crate::updater::State::Available(r) => {
@@ -213,8 +213,6 @@ impl App {
                 }
             }
         }
-        ui.add_space(6.0);
-        ui.hyperlink_to("Release notes on GitHub", "https://github.com/AnimaTheAeon/Turks/releases");
     }
 
     fn sys_events(&mut self, ui: &mut Ui) {

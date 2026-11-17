@@ -1,4 +1,4 @@
-; Turks installer (Inno Setup 6). Built by GitHub Actions:
+; Turks installer (Inno Setup 6). Built by the CI workflow:
 ;   iscc /DMyAppVersion=x.y.z installer\turks.iss
 
 #ifndef MyAppVersion
@@ -6,8 +6,7 @@
 #endif
 #define MyAppName "Turks"
 #define MyAppExe "turks.exe"
-#define MyAppPublisher "AnimaTheAeon"
-#define MyAppURL "https://github.com/AnimaTheAeon/Turks"
+#define MyAppPublisher "Turks"
 
 [Setup]
 AppId={{3B8E1C52-7D49-4A1F-B2E6-9C0D4F7A6E13}
@@ -15,9 +14,6 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}/issues
-AppUpdatesURL={#MyAppURL}/releases
 ; Per-user install: no admin prompt, lands in %LOCALAPPDATA%\Programs\Turks.
 PrivilegesRequired=lowest
 DefaultDirName={autopf}\{#MyAppName}

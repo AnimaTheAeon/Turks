@@ -485,10 +485,13 @@ impl App {
                             if ui.button("Later").clicked() {
                                 later = true;
                             }
-                            if !r.page_url.is_empty() {
-                                ui.hyperlink_to("What's new", &r.page_url);
-                            }
                         });
+                        if !r.notes.trim().is_empty() {
+                            ui.add_space(6.0);
+                            egui::CollapsingHeader::new("What's new").id_salt("upd-notes").show(ui, |ui| {
+                                ui.add(egui::Label::new(RichText::new(r.notes.trim()).color(TEXT())).wrap());
+                            });
+                        }
                     }
                     State::Downloading(r) => {
                         ff::title(ui, &format!("Updating to v{}", r.version), 22.0, TEXT());

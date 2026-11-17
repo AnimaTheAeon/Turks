@@ -32,7 +32,7 @@ const PACKAGE: &str = "Turks";
 #[derive(Clone, Debug, PartialEq)]
 pub struct Release {
     pub version: String,
-    pub page: String,
+    pub notes: String,
     pub spk_url: String,
     pub spk_name: String,
     pub sha256: Option<String>,
@@ -108,13 +108,17 @@ fn curl(args: &[&str]) -> Result<Vec<u8>, String> {
     if output.status.success() {
         Ok(output.stdout)
     } else {
-        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(if err.is_empty() { "Couldn't reach GitHub".into() } else { err })
+        // curl's own message names the server, so it isn't shown.
+        Err(match output.status.code() {
+            Some(22) => "The update server answered with an error. Try again later.".into(),
+            Some(28) => "The update server took too long to answer. Try again later.".into(),
+            _ => "Couldn't reach the update server. Check the internet connection and try again.".into(),
+        })
     }
 }
 
 pub fn parse_release(json: &Value) -> Result<Release, String> {
-    let tag = json["tag_name"].as_str().ok_or("GitHub's answer had no version")?;
+    let tag = json["tag_name"].as_str().ok_or("The update server's answer had no version")?;
     let asset = json["assets"]
         .as_array()
         .into_iter()
@@ -123,7 +127,7 @@ pub fn parse_release(json: &Value) -> Result<Release, String> {
         .ok_or("The latest release has no .spk for this NAS")?;
     Ok(Release {
         version: tag.trim_start_matches(['v', 'V']).to_string(),
-        page: json["html_url"].as_str().unwrap_or("").to_string(),
+        notes: json["body"].as_str().unwrap_or("").to_string(),
         spk_url: asset["browser_download_url"].as_str().ok_or("Missing download link")?.to_string(),
         spk_name: asset["name"].as_str().unwrap_or("Turks.spk").to_string(),
         sha256: asset["digest"]
@@ -135,9 +139,9 @@ pub fn parse_release(json: &Value) -> Result<Release, String> {
 }
 
 pub fn latest_release() -> Result<Release, String> {
-    let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
+    let url = std::env::var("TURKS_RELEASE_URL").unwrap_or_else(|_| format!("https://api.github.com/repos/{REPO}/releases/latest"));
     let body = curl(&["--max-time", "60", "-H", "Accept: application/vnd.github+json", &url])?;
-    let json: Value = serde_json::from_slice(&body).map_err(|e| format!("Unexpected answer from GitHub: {e}"))?;
+    let json: Value = serde_json::from_slice(&body).map_err(|_| "The update server sent an answer Turks couldn't read. Try again later.".to_string())?;
     parse_release(&json)
 }
 
@@ -210,7 +214,7 @@ pub fn status_json() -> Value {
         "current": current_version(),
         "latest": latest.map(|r| r.version.clone()),
         "available": latest.is_some_and(|r| is_newer(&r.version, current_version())),
-        "page": latest.map(|r| r.page.clone()),
+        "notes": latest.map(|r| r.notes.clone()),
         "checking": s.checking,
         "checked_at": s.checked_at,
         "error": s.error,
@@ -343,7 +347,7 @@ pub fn can_install_now() -> bool {
 
 /// "Update now": download, check and unpack in the background, then restart.
 pub fn start_install() -> Result<(), String> {
-    let dir = update_dir().ok_or("Turks wasn't started by its package script, so it can't update itself. Install the .spk from GitHub.")?;
+    let dir = update_dir().ok_or("Turks wasn't started by its package script, so it can't update itself. Install the new Turks package in Package Center.")?;
     let release = state()
         .lock()
         .unwrap_or_else(|e| e.into_inner())
@@ -398,7 +402,7 @@ fn install_into(release: &Release, dir: &Path) -> Result<(), String> {
         write_progress("verify", size, size, &release.version);
         if let Some(expected) = &release.sha256 {
             if &sha256_file(&spk)? != expected {
-                return Err("The download didn't match GitHub's checksum. Nothing was changed.".to_string());
+                return Err("The download didn't match its checksum. Nothing was changed.".to_string());
             }
         }
         let outer = work.join("outer");
@@ -418,7 +422,7 @@ fn install_into(release: &Release, dir: &Path) -> Result<(), String> {
         // Make sure the new program starts and is the version we expect before swapping.
         let said = Command::new(&exe).arg("version").output().map_err(|e| format!("The new program won't start: {e}"))?;
         if String::from_utf8_lossy(&said.stdout).trim() != release.version {
-            return Err("The downloaded program isn't the version GitHub listed. Nothing was changed.".into());
+            return Err("The downloaded program isn't the version that was offered. Nothing was changed.".into());
         }
         let next = dir.join("next");
         let _ = std::fs::remove_dir_all(&next);
@@ -485,7 +489,7 @@ fn download_with_progress(release: &Release, out: &Path) -> Result<(), String> {
                     let _ = e.read_to_string(&mut err);
                 }
                 let err = err.trim().to_string();
-                return Err(if err.is_empty() { "Couldn't reach GitHub".into() } else { err });
+                return Err(err);
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(500)),
             Err(e) => return Err(e.to_string()),
@@ -502,7 +506,7 @@ fn download_and_install(release: &Release, dir: &Path) -> Result<(), String> {
     if let Some(expected) = &release.sha256 {
         let actual = sha256_file(&spk)?;
         if &actual != expected {
-            return Err("The download didn't match GitHub's checksum".into());
+            return Err("The download didn't match its checksum".into());
         }
     }
     let was_running = Command::new(SYNOPKG).args(["is_onoff", PACKAGE]).output().ok().map(|o| {

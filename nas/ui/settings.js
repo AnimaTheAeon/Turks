@@ -454,7 +454,7 @@ async function sGeneral(body, advanced) {
       cNum("backup_interval_days", "Interval", "Days between automatic backups.", "days", 1, 7),
       cNum("backup_retention_days", "Retention", "Automatic backups older than this are deleted.", "days", 1, 90),
     ] : []),
-    ...head("Updates", "New versions come from GitHub."),
+    ...head("Updates", "Turks looks for new versions by itself."),
     cToggle("auto_update", "Install updates automatically", "Needs the optional Task Scheduler task below."),
     update,
     ...(advanced ? [
@@ -477,7 +477,7 @@ async function updatePanel(box) {
       u.available ? el("span.warn", `Turks ${u.latest} is available (you have ${u.current}).`) : el("span", u.latest ? `Turks ${u.current} is up to date.` : `Turks ${u.current}`),
       u.checking ? el("span.spin") : null, u.error ? el("span.bad.small", u.error) : null,
       el("span.grow"),
-      u.page ? el("a.small", { href: u.page, target: "_blank" }, "Release notes") : null,
+      u.available && u.notes && u.notes.trim() ? el("button.small", { onclick: () => openModal({ title: `What's new in Turks ${u.latest}`, body: el("div", { style: { whiteSpace: "pre-wrap" } }, u.notes.trim()) }) }, "What's new") : null,
       u.available && u.can_install_now ? el("button.small.primary", { disabled: !!u.installing, onclick: async (e) => {
         e.target.disabled = true; e.target.textContent = "Starting…";
         if ((await act("update/install", {})) !== undefined) updStart(u.latest);
@@ -487,7 +487,7 @@ async function updatePanel(box) {
         const b = e.target;
         b.disabled = true; b.replaceChildren(el("span.spin"), " Checking…");
         await act("update/check", {});
-        // Follow the check until GitHub answers (or 30 s pass), then say what it found.
+        // Follow the check until the update server answers (or 30 s pass), then say what it found.
         let r = null;
         for (let i = 0; i < 30; i++) {
           await new Promise((ok) => setTimeout(ok, 1000));
