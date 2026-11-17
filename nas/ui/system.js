@@ -42,7 +42,7 @@ async function sysStatus(body, tools) {
       el("span.k", "Library"), el("span", `${s.counts.movies} movies · ${s.counts.files} files · ${size(s.counts.size)}`),
       el("span.k", "API"), el("span", s.api.enabled ? `port ${s.api.port}${s.api.bind_all ? " (network)" : " (this NAS only)"}` : "off"),
       el("span.k", "ffprobe"), el("span", s.ffprobe || el("span.warn", "not found")),
-      el("span.k", "Source"), el("span", el("a", { href: "https://github.com/AnimaTheAeon/Turks", target: "_blank" }, "github.com/AnimaTheAeon/Turks"), " · GPLv3, based on Radarr")),
+      el("span.k", "License"), el("span", "GPLv3, based on Radarr")),
   );
 }
 

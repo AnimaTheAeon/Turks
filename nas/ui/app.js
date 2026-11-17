@@ -371,7 +371,7 @@ async function updWatch() {
   } else if (u.last_install && !u.last_install.ok && u.last_install.to === UPD.target) {
     UPD.failed = true;
     updShow("The update didn't work", 0, "", u.last_install.message + " Turks keeps running the version you have.", true);
-  } else if (Date.now() - UPD.seenAt > 10000) { UPD.target = null; updHide(); }
+  } else if (Date.now() - UPD.seenAt > 20000) { UPD.target = null; updHide(); }
 }
 // Remembered in the browser (not just this tab) for 30 minutes, so closing
 // and reopening the window can't start a reload loop either.
@@ -380,6 +380,15 @@ function reloadedRecently(v) {
 }
 function markReloaded(v) {
   try { localStorage.setItem("turks-reloaded", JSON.stringify({ v, at: Date.now() })); } catch (e) { /* private mode */ }
+}
+/** Update now was pressed: show the card right away and follow the update
+ * closely. Small downloads finish in seconds, faster than the regular check,
+ * so without this the window could miss the whole update. */
+function updStart(version) {
+  Object.assign(UPD, { target: version, restartAt: 0, finished: false, failed: false, seenAt: Date.now(), sawProgress: true });
+  updShow(`Updating Turks to ${version}`, 0.02, "Step 1 of 3 · Starting the download", "Turks keeps running while it downloads.");
+  clearInterval(UPD.fast);
+  UPD.fast = setInterval(() => { if (UPD.finished || !UPD.target) { clearInterval(UPD.fast); return; } updWatch(); }, 1000);
 }
 async function startUpdateWatch() {
   try { const v = sessionStorage.getItem("turks-updated"); if (v) { sessionStorage.removeItem("turks-updated"); UPD.reloadedFor = v; setTimeout(() => toast(`Turks updated to ${v}.`), 800); } } catch (e) { /* private mode */ }

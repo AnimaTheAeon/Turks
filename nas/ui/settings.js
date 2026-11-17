@@ -478,8 +478,27 @@ async function updatePanel(box) {
       u.checking ? el("span.spin") : null, u.error ? el("span.bad.small", u.error) : null,
       el("span.grow"),
       u.page ? el("a.small", { href: u.page, target: "_blank" }, "Release notes") : null,
-      u.available && u.can_install_now ? el("button.small.primary", { disabled: !!u.installing, onclick: async () => { await act("update/install", {}); } }, "Update now") : null,
-      el("button.small", { onclick: async () => { await act("update/check", {}); setTimeout(() => updatePanel(box), 4000); } }, "Check now")),
+      u.available && u.can_install_now ? el("button.small.primary", { disabled: !!u.installing, onclick: async (e) => {
+        e.target.disabled = true; e.target.textContent = "Starting…";
+        if ((await act("update/install", {})) !== undefined) updStart(u.latest);
+        else { e.target.disabled = false; e.target.textContent = "Update now"; }
+      } }, u.installing ? "Updating…" : "Update now") : null,
+      el("button.small", { disabled: !!u.checking, onclick: async (e) => {
+        const b = e.target;
+        b.disabled = true; b.replaceChildren(el("span.spin"), " Checking…");
+        await act("update/check", {});
+        // Follow the check until GitHub answers (or 30 s pass), then say what it found.
+        let r = null;
+        for (let i = 0; i < 30; i++) {
+          await new Promise((ok) => setTimeout(ok, 1000));
+          try { r = await api("update"); } catch (err) { r = null; }
+          if (r && !r.checking) break;
+        }
+        if (r && r.error) toast("Couldn't check for updates: " + r.error, true);
+        else if (r && r.available) toast(`Turks ${r.latest} is available.`);
+        else if (r && !r.checking) toast(`Turks ${r.current} is up to date.`);
+        updatePanel(box);
+      } }, u.checking ? "Checking…" : "Check now")),
     el("div.dim.small", u.checked_at ? "Checked " + ago(u.checked_at) : ""),
     u.can_install_now && !u.window_updates ? el("div.dim.small", "Update now can't replace this window's own screens on this NAS, so a release that changes how it looks also needs the .spk installed (Package Center → Manual Install, or the scheduled task).") : null,
     last && last.time ? el("div.small." + (last.ok ? "good" : "bad"), `Last automatic run ${ago(last.time)}: ${last.message}`) : null,
