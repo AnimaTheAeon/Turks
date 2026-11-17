@@ -333,19 +333,26 @@ async function updWatch() {
   if (UPD.finished) return;
   let u = null;
   try { u = await api("update"); } catch (e) { u = null; }
+  // The version this page was loaded with. If the first check at load failed,
+  // take the first answer we get, as long as no update was in progress then.
+  if (u && !UPD.loadedVersion && !UPD.target && !(u.progress && u.progress.to)) UPD.loadedVersion = u.current || null;
   const p = u && u.progress;
   if (p && p.to && UPD.target !== p.to) { UPD.target = p.to; UPD.restartAt = 0; UPD.failed = false; }
-  if (p) UPD.seenAt = Date.now();
+  if (p) { UPD.seenAt = Date.now(); UPD.sawProgress = true; }
   if (!UPD.target || UPD.failed) return;
   const title = `Updating Turks to ${UPD.target}`;
   if (u && u.current === UPD.target) {
     UPD.finished = true;
-    // This page already shows the new version (it loaded after the
-    // restart): say so once, never reload again.
-    if (UPD.loadedVersion === UPD.target || UPD.reloadedFor === UPD.target) {
+    // Reload only when this page really started on an older version and
+    // watched the update happen, and never twice for the same version. Every
+    // other case just closes the progress card: the page is already current,
+    // or reloading wouldn't change anything.
+    const older = UPD.loadedVersion && UPD.loadedVersion !== UPD.target;
+    if (!older || !UPD.sawProgress || UPD.reloadedFor === UPD.target || reloadedRecently(UPD.target)) {
       updHide();
       return;
     }
+    markReloaded(UPD.target);
     try { sessionStorage.setItem("turks-updated", UPD.target); } catch (e) { /* private mode */ }
     updShow(`Turks ${UPD.target} is installed`, 1, "Done", "Reloading the page…");
     setTimeout(() => location.reload(), 1800);
@@ -365,6 +372,14 @@ async function updWatch() {
     UPD.failed = true;
     updShow("The update didn't work", 0, "", u.last_install.message + " Turks keeps running the version you have.", true);
   } else if (Date.now() - UPD.seenAt > 10000) { UPD.target = null; updHide(); }
+}
+// Remembered in the browser (not just this tab) for 30 minutes, so closing
+// and reopening the window can't start a reload loop either.
+function reloadedRecently(v) {
+  try { const r = JSON.parse(localStorage.getItem("turks-reloaded") || "null"); return !!(r && r.v === v && Date.now() - r.at < 30 * 60 * 1000); } catch (e) { return false; }
+}
+function markReloaded(v) {
+  try { localStorage.setItem("turks-reloaded", JSON.stringify({ v, at: Date.now() })); } catch (e) { /* private mode */ }
 }
 async function startUpdateWatch() {
   try { const v = sessionStorage.getItem("turks-updated"); if (v) { sessionStorage.removeItem("turks-updated"); UPD.reloadedFor = v; setTimeout(() => toast(`Turks updated to ${v}.`), 800); } } catch (e) { /* private mode */ }
