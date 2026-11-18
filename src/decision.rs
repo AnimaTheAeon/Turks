@@ -423,7 +423,9 @@ pub fn evaluate(ctx: &Ctx, c: &mut Candidate) {
     let blocked = lib.blocklist.values().any(|b| {
         b.movie_id == movie.id
             && ((!r.info_hash.is_empty() && b.info_hash.eq_ignore_ascii_case(&r.info_hash))
-                || (b.source_title == r.title && b.indexer == r.indexer && (b.size == 0 || r.size == 0 || b.size == r.size)))
+                || (b.source_title == r.title && b.indexer == r.indexer && (b.size == 0 || r.size == 0 || b.size == r.size))
+                // The same release from another site: same title, same size (within 2 MB).
+                || (b.source_title == r.title && b.size > 0 && r.size > 0 && b.size.abs_diff(r.size) <= 2 * 1024 * 1024))
     });
     if blocked {
         rej.push(Rejection::perm("Release is blocklisted"));

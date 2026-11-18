@@ -10,6 +10,9 @@ use serde_json::{json, Value};
 use crate::model::{ClientKind, DownloadClient, Protocol};
 use crate::release::Release;
 
+/// Lifestream: give up on a download after this long with no data (30 minutes).
+pub const LIFESTREAM_STALL_SECS: i64 = 30 * 60;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum ItemStatus {
     Queued,
@@ -275,7 +278,7 @@ mod transmission {
         let r = rpc(
             c,
             "torrent-get",
-            json!({"fields": ["hashString","name","downloadDir","totalSize","leftUntilDone","eta","status","errorString","error","labels","isFinished","percentDone","uploadRatio","seedRatioLimit","seedRatioMode","secondsSeeding"]}),
+            json!({"fields": ["hashString","name","downloadDir","totalSize","leftUntilDone","eta","status","errorString","error","labels","isFinished","percentDone","uploadRatio","seedRatioLimit","seedRatioMode","secondsSeeding","lifestreamStalledSecs"]}),
         )?;
         let mut out = Vec::new();
         for t in r.get("torrents").and_then(|t| t.as_array()).into_iter().flatten() {
@@ -292,9 +295,30 @@ mod transmission {
             let status = t.get("status").and_then(|x| x.as_i64()).unwrap_or(0);
             let error = t.get("error").and_then(|x| x.as_i64()).unwrap_or(0);
             let finished = t.get("isFinished").and_then(|x| x.as_bool()).unwrap_or(false);
+            // Lifestream counts how long a download has been trying with no data at
+            // all (only while it is really downloading and the network works). A
+            // release nobody shares never finishes, so give up on it: Turks then
+            // blocks it and searches for another one.
+            let stalled = t.get("lifestreamStalledSecs").and_then(|x| x.as_i64()).unwrap_or(0);
+            let total = t.get("totalSize").and_then(|x| x.as_u64()).unwrap_or(0);
+            // A magnet that hasn't got its details yet has no size: not finished.
+            if (left > 0 || total == 0) && stalled >= LIFESTREAM_STALL_SECS {
+                out.push(ClientItem {
+                    id: t.get("hashString").and_then(|h| h.as_str()).unwrap_or("").to_lowercase(),
+                    output_path: Path::new(dir).join(&name).display().to_string(),
+                    title: name,
+                    size: t.get("totalSize").and_then(|x| x.as_u64()).unwrap_or(0),
+                    remaining: left,
+                    eta_secs: None,
+                    status: ItemStatus::Failed,
+                    message: format!("No data for {} minutes: nobody is sharing this release. Turks will try another one.", LIFESTREAM_STALL_SECS / 60),
+                    can_be_removed: false,
+                });
+                continue;
+            }
             let st = if error > 0 {
                 ItemStatus::Warning
-            } else if left == 0 {
+            } else if left == 0 && total > 0 {
                 ItemStatus::Completed
             } else if status == 0 {
                 ItemStatus::Paused
