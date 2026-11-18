@@ -1,4 +1,4 @@
-//! Box of X layout (ported from Jenova via Lifestream): a home screen with a glowing jelly orb
+//! Xbox layout (ported from Jenova via Lifestream): a home screen with a glowing jelly orb
 //! and a curved column of ring nodes wired to slanted menu tabs; each entry
 //! opens a full page with a slanted title bar and a framed panel.
 

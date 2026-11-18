@@ -514,8 +514,8 @@ async function updatePanel(box) {
 
 async function sUi(body, advanced) {
   add(body, ...head("Look"),
-    field("Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Liquid Glass: dark frosted glass with the menu on the left.",
-      select([["ff", "FFVII Menu"], ["green", "Xbox"], ["blades", "Blades"], ["glass", "Liquid Glass"]], Turks.cfg.theme || "ff", async (v) => {
+    field("Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Dark Glass: dark frosted glass with the menu on the left.",
+      select([["ff", "FFVII Menu"], ["green", "Xbox"], ["blades", "Blades"], ["glass", "Dark Glass"]], Turks.cfg.theme || "ff", async (v) => {
         // Like Jenova: switch the look right away, then save it.
         Turks.pendingTheme = v;
         Turks.cfg.theme = v;

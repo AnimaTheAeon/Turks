@@ -111,7 +111,7 @@ impl App {
         let mut flip = false;
         ui.horizontal(|ui| {
             ff::title(ui, "Settings", 26.0, TEXT());
-            // Box of X and Blades have no side window, so MODE sits here.
+            // Xbox and Blades have no side window, so MODE sits here.
             if ff::is_green() || ff::is_blades() {
                 ui.label(common::dim_text(if advanced { "Advanced mode: showing everything" } else { "Simple mode: the settings most people need" }));
                 let label = if advanced { "MODE: ADVANCED" } else { "MODE: SIMPLE" };
@@ -885,7 +885,7 @@ impl App {
         let c = &mut self.cfg;
         let mut ch = false;
         w::section_help(ui, "Look", "");
-        ch |= w::row(ui, "Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Liquid Glass: dark frosted glass with the menu on the left.", |ui| {
+        ch |= w::row(ui, "Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Dark Glass: dark frosted glass with the menu on the left.", |ui| {
             let mut changed = false;
             let cur = ff::Theme::from_key(&c.theme);
             egui::ComboBox::from_id_salt("theme").selected_text(cur.label()).show_ui(ui, |ui| {

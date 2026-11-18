@@ -17,7 +17,7 @@ Two builds from one Rust engine:
   in the DSM main menu, in the same menu style. Only DSM administrators can open it.
 
 Both update themselves from GitHub Releases, and both have two looks, picked in Settings › UI ›
-Theme: the **FFVII menu** (blue windows, pointing hand) and **Box of X** (a green console dashboard:
+Theme: the **FFVII menu** (blue windows, pointing hand) and **Xbox** (a green console dashboard:
 pick a page from the orb's menu with the mouse or the arrow keys and Enter; BACK, Esc or the mouse's
 back button returns to it).
 

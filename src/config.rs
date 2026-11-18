@@ -104,7 +104,7 @@ pub struct Config {
     pub start_with_windows: bool,
     pub close_to_tray: bool,
     pub advanced_mode: bool,
-    /// Look of the window: "ff" (FFVII menu), "green" (Box of X), "blades" (Blades) or "glass" (Liquid Glass).
+    /// Look of the window: "ff" (FFVII menu), "green" (Xbox), "blades" (Blades) or "glass" (Dark Glass).
     pub theme: String,
     pub log_debug: bool,
     pub proxy_url: String,

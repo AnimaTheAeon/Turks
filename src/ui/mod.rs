@@ -90,11 +90,11 @@ pub struct App {
     restart_seen: Option<Instant>,
     pub restore_pending: bool,
     pub first_run: Option<common::FirstRun>,
-    /// Box of X: a page is open (false = the home screen with the orb).
+    /// Xbox: a page is open (false = the home screen with the orb).
     pub green_in_page: bool,
-    /// Box of X: highlighted menu entry on the home screen.
+    /// Xbox: highlighted menu entry on the home screen.
     pub green_cursor: usize,
-    /// Box of X transitions: zooming into the orb to open a page, the page
+    /// Xbox transitions: zooming into the orb to open a page, the page
     /// coming out of the glow, and both reversed on BACK.
     pub green_zoom: Option<(Page, std::time::Instant)>,
     pub green_reveal: Option<std::time::Instant>,
@@ -256,7 +256,7 @@ impl App {
         }
     }
 
-    /// Switches the look when the Theme setting changed. Switching to Box of X
+    /// Switches the look when the Theme setting changed. Switching to Xbox
     /// keeps you on the page you were on (Settings) instead of the home screen;
     /// done once here, never per frame, so BACK still works afterwards.
     fn sync_theme(&mut self, ctx: &egui::Context) {
@@ -284,7 +284,7 @@ impl App {
         let gap = 12.0;
         let side_w = 220.0_f32.min(full.width() * 0.28);
         let bar_h = 48.0;
-        // Liquid Glass puts the sidebar on the left, like an iPad app.
+        // Dark Glass puts the sidebar on the left, like a tablet app.
         let main = if glass {
             Rect::from_min_max(pos2(full.left() + side_w + gap, full.top()), pos2(full.right(), full.bottom() - bar_h - gap))
         } else {
@@ -577,7 +577,7 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.sync_theme(&ctx);
-        // Box of X paints its own background (fade and grid) behind the panel.
+        // Xbox paints its own background (fade and grid) behind the panel.
         let fill = if ff::is_green() { egui::Color32::TRANSPARENT } else { ff::BACKDROP() };
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(fill).inner_margin(egui::Margin::same(if ff::is_blades() { 0 } else { 14 })))
@@ -616,7 +616,7 @@ fn configure_fonts(ctx: &egui::Context) {
     if let Some(m) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
         m.push("Inter".to_owned());
     }
-    // Blocky display face for the Box of X theme.
+    // Blocky display face for the Xbox theme.
     fonts.font_data.insert("Orbitron".to_owned(), Arc::new(egui::FontData::from_static(include_bytes!("../../resources/Orbitron-800.ttf"))));
     fonts.families.insert(
         egui::FontFamily::Name("display".into()),
