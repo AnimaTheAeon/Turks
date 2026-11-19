@@ -301,17 +301,36 @@ impl App {
             if ui.max_rect().right() - ui.cursor().left() < 600.0 {
                 ui.end_row();
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(common::dim_text(&format!("{} of {total}", list.len())));
-                // Colour key for the bar under each poster.
-                ui.add_space(8.0);
-                for st in MovieState::ALL.iter().rev() {
-                    ui.label(RichText::new(st.key_label()).color(TEXT_DIM()).size(11.5));
-                    let (r, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
-                    ui.painter().rect_filled(r.shrink(1.0), egui::CornerRadius::same(2), st.color());
-                    ui.add_space(4.0);
+            if ui.max_rect().width() < 600.0 {
+                // Too narrow even for a row of its own (MC360's page pane in a
+                // small window): lay the key out left to right so it wraps.
+                for st in MovieState::ALL.iter() {
+                    // Measure first: a group can't be wrapped once it's placed.
+                    let font = egui::FontId::proportional(11.5);
+                    let w = ui.painter().layout_no_wrap(st.key_label().to_string(), font, TEXT_DIM()).size().x + 10.0 + 3.0 * ui.spacing().item_spacing.x;
+                    if ui.max_rect().right() - ui.cursor().left() < w {
+                        ui.end_row();
+                    }
+                    ui.horizontal(|ui| {
+                        let (r, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
+                        ui.painter().rect_filled(r.shrink(1.0), egui::CornerRadius::same(2), st.color());
+                        ui.label(RichText::new(st.key_label()).color(TEXT_DIM()).size(11.5));
+                    });
                 }
-            });
+                ui.label(common::dim_text(&format!("{} of {total}", list.len())));
+            } else {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(common::dim_text(&format!("{} of {total}", list.len())));
+                    // Colour key for the bar under each poster.
+                    ui.add_space(8.0);
+                    for st in MovieState::ALL.iter().rev() {
+                        ui.label(RichText::new(st.key_label()).color(TEXT_DIM()).size(11.5));
+                        let (r, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
+                        ui.painter().rect_filled(r.shrink(1.0), egui::CornerRadius::same(2), st.color());
+                        ui.add_space(4.0);
+                    }
+                });
+            }
         });
         ff::divider(ui);
 
