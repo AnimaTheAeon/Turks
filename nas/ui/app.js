@@ -841,8 +841,9 @@ async function mcOn() {
     },
   });
   mc.host.classList.add("bbody");
-  const { b, id } = mcLocate(Turks.page, Turks.arg);
-  if (Turks.page === "movies" && !Turks.arg) mc.home(b); else mc.showPage(b, id);
+  const { b } = mcLocate(Turks.page, Turks.arg);
+  // Start on the menu of the blade the current page belongs to; Enter opens the page.
+  mc.home(b);
 }
 function mcOff() { if (mc) { mc.destroy(); mc = null; } }
 function mcShow(page, arg) {
