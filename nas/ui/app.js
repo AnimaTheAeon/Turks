@@ -263,6 +263,7 @@ function go(page, arg) {
   const main = $("#main");
   main.replaceChildren();
   if (isBlades()) bladesShow(page);
+  else if (mc) mcShow(page, arg);
   else if (isGreen()) {
     Turks.home = false;
     document.body.classList.remove("ghome-on");
@@ -760,12 +761,113 @@ Turks.home = false;
 Turks.cursor = 0;
 
 /** Switch looks to match Turks.cfg.theme. `stay` keeps the current page open. */
+
+// ---------------------------------------------------------------- MC360 look
+// The MC360 dashboard skin's blades, one per menu section, each with a menu
+// of that section's pages and tabs. Picking one opens it on the blade (the
+// same page as in every other look). The engine lives in mc360/.
+
+let mc = null, mcLoading = null, mcPick = null;
+const isMc360 = () => !!(Turks.cfg && Turks.cfg.theme === "mc360");
+const MC_LOOKS = [["ff", "FFVII Menu"], ["green", "Xbox"], ["blades", "Blades"], ["glass", "Dark Glass"], ["mc360", "MC360"]];
+const MC_SETTINGS_ICON = { media: ["folder", "Naming, folders, hardlinks."], indexers: ["search", "Synced from Materia."], clients: ["plug", "Lifestream connection."], connect: ["bell", "Where alerts go."], tags: ["tag", "Tags and what uses them."], general: ["gear", "Port, sign-in, backups."], ui: ["palette", "Look; MC360's skin and sounds are in the guide (G)."] };
+function mcBlades() {
+  const adv = Turks.cfg && Turks.cfg.advanced_mode;
+  return [
+    { key: "movies", color: "blue", items: [{ id: "movies:", label: "Library", icon: "film", hint: "Your movies." }] },
+    { key: "add movie", color: "green", items: [
+      { id: "add:", label: "Search", icon: "search", hint: "Find a movie by name." },
+      { id: "discover:", label: "Discover", icon: "eye", hint: "Popular and upcoming." },
+      { id: "collections:", label: "Collections", icon: "apps", hint: "Fill in film series." }] },
+    { key: "calendar", color: "orange", items: [{ id: "calendar:", label: "Calendar", icon: "cal", hint: "Releases by day." }] },
+    { key: "activity", color: "red", items: [
+      { id: "activity:queue", label: "Queue", icon: "queue", hint: "Downloads in progress." },
+      { id: "activity:history", label: "History", icon: "clock", hint: "Grabs and imports." },
+      { id: "activity:blocklist", label: "Blocklist", icon: "block", hint: "Releases that won't be grabbed again." }] },
+    { key: "settings", color: "purple", items: SECTIONS.filter(([, , a]) => adv || !a).map(([k, l]) => ({ id: "settings:" + k, label: l, icon: (MC_SETTINGS_ICON[k] || ["gear"])[0], hint: (MC_SETTINGS_ICON[k] || [, l + " settings."])[1] })) },
+    { key: "system", color: "grey", items: [["status", "Status", "info", "Health checks and versions."], ["tasks", "Tasks", "task", "Scheduled jobs, with Run now."], ["backup", "Backup", "disk", "Make and restore backups."], ["updates", "Updates", "refresh", "Check now and Update now."], ["events", "Events", "bell", "What the app has been doing."], ["logs", "Log", "doc", "Read the log."], ["parse", "Parse", "search", "Test how a name is read."]].map(([k, l, i, h]) => ({ id: "system:" + k, label: l, icon: i, hint: h })) },
+  ];
+}
+/** The blade and menu entry for a page and its tab. */
+function mcLocate(page, arg) {
+  const bl = mcBlades();
+  const b = Math.max(0, MENU.findIndex((m) => m[0] === menuOf(page)));
+  const ids = bl[b].items.map((it) => it.id);
+  const tab = typeof arg === "string" ? arg : page === "settings" ? store.get("settingsSection", "media") : "";
+  const id = ids.find((x) => x === page + ":" + tab) || ids.find((x) => x.startsWith(page + ":")) || ids[0];
+  return { b, id };
+}
+function mcVersion() { const t = $('script[src^="app.js"]'); return t ? new URL(t.src, location.href).searchParams.get("v") || "" : ""; }
+function mcLoad() {
+  if (window.MC360) return Promise.resolve();
+  if (mcLoading) return mcLoading;
+  document.head.append(el("link", { rel: "stylesheet", href: "mc360/mc360.css?v=" + mcVersion() }));
+  mcLoading = new Promise((resolve, reject) => { const js = el("script", { src: "mc360/mc360.js?v=" + mcVersion() }); js.onload = resolve; js.onerror = reject; document.head.append(js); });
+  return mcLoading;
+}
+async function mcOn() {
+  if (mc) return;
+  try { await mcLoad(); } catch (e) { toast("The MC360 look couldn't load its files.", true); return; }
+  if (mc || !isMc360()) return;
+  mc = MC360.mount({
+    base: "mc360/",
+    app: { name: "Turks", plat: "NAS", ver: mcVersion(), icon: "film" },
+    blades: mcBlades(),
+    card: () => {
+      const s = Turks.state;
+      if (!s) return ["Connecting…"];
+      return [`${s.counts.movies} movies · ${s.counts.missing} missing`, `${s.counts.queue || 0} in queue`, $("#status") ? $("#status").textContent : ""];
+    },
+    host: () => $("#main"),
+    onOpen: (b, item) => { const [page, tab] = item.id.split(":"); mcPick = item.id; go(page, tab || null); },
+    beforeBack: () => { if (Turks.page === "movies" && Turks.arg) { go("movies"); return true; } return false; },
+    popupOpen: () => modalStack.length > 0 || !!document.querySelector(".overlay-msg.open"),
+    looks: MC_LOOKS.map(([, l]) => l),
+    setLook: async (label) => {
+      const v = (MC_LOOKS.find(([, l]) => l === label) || ["ff"])[0];
+      if (v === Turks.cfg.theme) return;
+      Turks.pendingTheme = v; Turks.cfg.theme = v;
+      try { localStorage.setItem("turks-theme", v); } catch (e) {}
+      applyTheme(true);
+      const r = await saveConfig({ theme: v });
+      if (Turks.pendingTheme === v) Turks.pendingTheme = null;
+      if (!r) toast("Couldn't save the theme. It's on for now, but Turks will open in the old one next time. Try again in a moment.", true);
+    },
+    checkUpdates: async () => {
+      go("system", "updates");
+      const b = [...document.querySelectorAll("#main button")].find((x) => /Check/i.test(x.textContent));
+      if (b) b.click();
+      return "Checking: see System > Updates";
+    },
+  });
+  mc.host.classList.add("bbody");
+  const { b, id } = mcLocate(Turks.page, Turks.arg);
+  if (Turks.page === "movies" && !Turks.arg) mc.home(b); else mc.showPage(b, id);
+}
+function mcOff() { if (mc) { mc.destroy(); mc = null; } }
+function mcShow(page, arg) {
+  if (!mc) return;
+  mc.setBlades(mcBlades());
+  const loc = mcLocate(page, arg);
+  mc.showPage(loc.b, mcPick && mcPick.startsWith(page + ":") ? mcPick : loc.id);
+  mcPick = null;
+}
+
 function applyTheme(stay) {
   const green = isGreen(), blades = isBlades();
   document.body.classList.toggle("green", green);
   document.body.classList.toggle("blades", blades);
   document.body.classList.toggle("glass", isGlass());
   requestAnimationFrame(glassPill);
+  if (isMc360()) {
+    document.body.classList.remove("ghome-on");
+    Turks.home = false;
+    bladesOff();
+    if (stay) go(Turks.page, Turks.arg);
+    mcOn();
+    return;
+  }
+  mcOff();
   if (blades) {
     document.body.classList.remove("ghome-on");
     Turks.home = false;

@@ -5,6 +5,9 @@ mod activity;
 mod add;
 mod blades;
 mod blades_layout;
+mod mc360;
+mod mc360_app;
+mod mc360_data;
 mod calendar;
 mod common;
 mod green;
@@ -102,6 +105,8 @@ pub struct App {
     pub green_unzoom: Option<std::time::Instant>,
     /// Blades theme: slide state between frames.
     pub blades: blades::State,
+    /// The MC360 look, while it is on.
+    pub mc: Option<mc360::Mc360>,
     /// The start screen shown over the window at launch.
     splash: splash::Splash,
 }
@@ -156,6 +161,7 @@ impl App {
             green_leave: None,
             green_unzoom: None,
             blades: Default::default(),
+            mc: None,
             splash: if start_hidden { splash::Splash::skipped() } else { splash::Splash::default() },
             core,
         }
@@ -273,6 +279,10 @@ impl App {
         if ff::is_green() {
             return self.green_layout(ui);
         }
+        if ff::is_mc360() {
+            return self.mc360_layout(ui);
+        }
+        self.mc = None;
         if ff::is_blades() {
             return self.blades_layout(ui);
         }
@@ -622,6 +632,7 @@ fn configure_fonts(ctx: &egui::Context) {
         egui::FontFamily::Name("display".into()),
         vec!["Orbitron".to_owned(), "Nunito".to_owned(), "Inter".to_owned(), "Hack".to_owned()],
     );
+    mc360::add_font(&mut fonts);
     ctx.set_fonts(fonts);
 }
 

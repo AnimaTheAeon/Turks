@@ -869,3 +869,15 @@ body.glass.calm #menu::before, body.glass.calm button, body.glass.calm button::b
   body.glass .menu { left: auto; right: 0; }
   body.glass #toasts { bottom: 130px; }
 }
+
+/* ---------------------------------------------------------------- MC360
+   The engine (mc360/) draws the skin's blades, menus, guide and sounds. The
+   page sits on the open blade in a dark see-through pane, styled like the
+   Blades look's page (white text on glass), which hangs off .bbody. */
+.mc360-root .mc-host.bbody { opacity: 1; transform: none; transition: none; padding: 10px 14px; background: rgba(8, 12, 22, .5); border: 1px solid rgba(255, 255, 255, .3); border-radius: 10px; --band: rgba(0, 0, 0, .35); }
+.mc360-root .mc-host.bbody #main { overflow: visible; }
+body.mc360 .modal, body.mc360 .overlay-msg, body.mc360 #toasts { z-index: 1000; }
+body.mc360 .modal .win { background: linear-gradient(160deg, #4a4466, #2e2a44); border: 1px solid rgba(255, 255, 255, .55); border-radius: 18px; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+body.mc360 .modal button, body.mc360 .modal input, body.mc360 .modal select, body.mc360 .modal textarea { border-radius: 14px; }
+body.mc360 #toasts { right: 70px; bottom: 80px; }
+body.mc360 .toast { background: rgba(28, 24, 40, .92); border: 1px solid rgba(255, 255, 255, .55); border-radius: 16px; box-shadow: 0 6px 18px rgba(0, 0, 0, .4); }

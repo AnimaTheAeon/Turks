@@ -9,7 +9,7 @@ use super::App;
 use crate::config::{ColonReplacement, FileDate, Propers, RescanAfterRefresh};
 use crate::model::*;
 
-const SECTIONS: &[(&str, bool)] = &[
+pub(super) const SECTIONS: &[(&str, bool)] = &[
     ("Media Management", false),
     ("Profiles", false),
     ("Quality", true),
@@ -885,11 +885,11 @@ impl App {
         let c = &mut self.cfg;
         let mut ch = false;
         w::section_help(ui, "Look", "");
-        ch |= w::row(ui, "Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Dark Glass: dark frosted glass with the menu on the left.", |ui| {
+        ch |= w::row(ui, "Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Dark Glass: dark frosted glass with the menu on the left. MC360: the MC360 dashboard skin's blades, each with a menu of its pages; G opens the guide with skin, sounds and motion.", |ui| {
             let mut changed = false;
             let cur = ff::Theme::from_key(&c.theme);
             egui::ComboBox::from_id_salt("theme").selected_text(cur.label()).show_ui(ui, |ui| {
-                for t in [ff::Theme::FfMenu, ff::Theme::GreenDash, ff::Theme::Blades, ff::Theme::Glass] {
+                for t in [ff::Theme::FfMenu, ff::Theme::GreenDash, ff::Theme::Blades, ff::Theme::Glass, ff::Theme::Mc360] {
                     if ui.selectable_label(cur == t, t.label()).clicked() && cur != t {
                         c.theme = t.key().to_string();
                         changed = true;

@@ -46,8 +46,8 @@ Turks.pages.settings = {
     const body = el("div.scroll");
     main.append(el("div.page",
       el("div.page-head", el("h1", "Settings"),
-        el("span.dim", advanced ? "Advanced mode: showing everything" : isGreen() || isBlades() ? "Simple mode: just what you need to get going" : "Simple mode: the settings most people need (switch with MODE in the side window)"),
-        isGreen() || isBlades() ? el("button", { onclick: async () => { await saveConfig({ advanced_mode: !advanced }); renderInfo(); rerender(); } }, advanced ? "MODE: ADVANCED" : "MODE: SIMPLE") : null),
+        el("span.dim", advanced ? "Advanced mode: showing everything" : isGreen() || isBlades() || isMc360() ? "Simple mode: just what you need to get going" : "Simple mode: the settings most people need (switch with MODE in the side window)"),
+        isGreen() || isBlades() || isMc360() ? el("button", { onclick: async () => { await saveConfig({ advanced_mode: !advanced }); renderInfo(); rerender(); } }, advanced ? "MODE: ADVANCED" : "MODE: SIMPLE") : null),
       el("div.divider"), el("div.split", nav, body)));
     await loadLists(["tag", "root", "profile"]);
     await ({ media: sMedia, profiles: sProfiles, quality: sQuality, formats: sFormats, indexers: sIndexers, clients: sClients, lists: sLists,
@@ -514,8 +514,8 @@ async function updatePanel(box) {
 
 async function sUi(body, advanced) {
   add(body, ...head("Look"),
-    field("Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Dark Glass: dark frosted glass with the menu on the left.",
-      select([["ff", "FFVII Menu"], ["green", "Xbox"], ["blades", "Blades"], ["glass", "Dark Glass"]], Turks.cfg.theme || "ff", async (v) => {
+    field("Theme", "FFVII Menu: blue windows and the pointing hand. Xbox: a green dashboard with a glowing orb; pick a page from the home screen, and BACK (Esc or the mouse's back button) returns to it. Blades: glossy silver blades; click one, use Left/Right or drag sideways. Dark Glass: dark frosted glass with the menu on the left. MC360: the MC360 dashboard skin's blades, each with a menu of its pages; G opens the guide with skin, sounds and motion.",
+      select([["ff", "FFVII Menu"], ["green", "Xbox"], ["blades", "Blades"], ["glass", "Dark Glass"], ["mc360", "MC360"]], Turks.cfg.theme || "ff", async (v) => {
         // Like Jenova: switch the look right away, then save it.
         Turks.pendingTheme = v;
         Turks.cfg.theme = v;
