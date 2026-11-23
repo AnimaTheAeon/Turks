@@ -314,6 +314,10 @@ pub fn evaluate(ctx: &Ctx, c: &mut Candidate) {
         let multi = parser::language::has_multiple_languages(&r.title);
         if !multi && !langs.iter().any(|l| l.eq_ignore_ascii_case(wanted)) {
             rej.push(Rejection::perm(format!("Language {} isn't wanted (profile wants {wanted})", langs.join(", "))));
+        } else if langs.len() > 1 && !langs[0].eq_ignore_ascii_case(wanted) {
+            // Dual-audio releases play their first language by default
+            // ("ITA ENG", "Hindi Eng"), so the wanted one has to come first.
+            rej.push(Rejection::perm(format!("{} comes first in {} (profile wants {wanted})", langs[0], langs.join(", "))));
         }
     }
 
@@ -660,6 +664,23 @@ mod tests {
         assert_eq!(ok.len(), 2, "{:#?}", cands.iter().map(|c| (&c.release.title, &c.rejections)).collect::<Vec<_>>());
         assert_eq!(ok[0].parsed.quality.quality, id::BLURAY1080P);
         assert!(cands[4].movie_id.is_none());
+    }
+
+    #[test]
+    fn foreign_first_dual_audio_is_rejected() {
+        let mut lib = lib_with_movie();
+        lib.profiles.get_mut(&1).unwrap().language = "English".into();
+        let cfg = Config::default();
+        let ctx = Ctx { lib: &lib, cfg: &cfg, mode: Mode::AutoSearch, imported_titles: HashSet::new(), grabbed_titles: HashSet::new() };
+        let check = |title: &str| {
+            let mut c = candidate(&lib, rel(title, 6.0), None);
+            evaluate(&ctx, &mut c);
+            c
+        };
+        let ita = check("The Matrix (1999 ITA/ENG) [1080p x265] [Paso77]");
+        assert!(ita.rejections.iter().any(|r| r.reason.contains("comes first")), "{:?} {:?}", ita.parsed.languages, ita.rejections);
+        let eng = check("The.Matrix.1999.1080p.BluRay.x264-GRP");
+        assert!(eng.approved(), "{:?}", eng.rejections);
     }
 
     #[test]

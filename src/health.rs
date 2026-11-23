@@ -73,7 +73,7 @@ pub fn check(core: &Core) {
             for r in lib.root_folders.values() {
                 let p = Path::new(&r.path);
                 if r.path.starts_with("/volume") && p.is_dir() && crate::import::share_recycle_dir(p).is_none() {
-                    out.push(issue("Recycle bin", HealthLevel::Notice, format!("The recycle bin is off for the shared folder holding {}, so deleted movies are gone for good. Turn it on in Control Panel › Shared Folder › Edit.", r.path)));
+                    out.push(issue("Recycle bin", HealthLevel::Notice, format!("The recycle bin is off for the shared folder holding {}, so replaced and deleted movies go to its Turks Recycle Bin folder instead. Turn it on in Control Panel › Shared Folder › Edit, or set a recycle bin in Turks.", r.path)));
                 }
             }
         }

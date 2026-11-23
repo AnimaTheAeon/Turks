@@ -243,8 +243,8 @@ fn system_recycle(path: &Path) -> Result<(), String> {
         Ok(()) => Ok(()),
         // Network drives have no Recycle Bin.
         Err(e) => {
-            crate::applog::warn(format!("Couldn't use the Recycle Bin for {} ({e}); deleting it", path.display()));
-            delete_for_good(path)
+            crate::applog::warn(format!("Couldn't use the Recycle Bin for {} ({e}); keeping it in Turks' own recycle bin", path.display()));
+            keep_in_fallback_bin(path)
         }
     }
 }
@@ -264,8 +264,45 @@ fn system_recycle(path: &Path) -> Result<(), String> {
             }
             transfer(path, &dest, Transfer::Move).map(|_| ())
         }
-        None => delete_for_good(path),
+        // The share's own recycle bin is off: never delete for good, keep it
+        // in a "Turks Recycle Bin" folder at the top of the share instead.
+        None => keep_in_fallback_bin(path),
     }
+}
+
+/// The folder files go to when no recycle bin is set and the system has none
+/// for this place: "Turks Recycle Bin" at the top of the shared folder
+/// (/volumeN/share on a Synology) or of the drive or network share (Windows).
+pub fn fallback_bin(path: &Path) -> Option<PathBuf> {
+    let comps: Vec<_> = path.components().collect();
+    #[cfg(not(windows))]
+    let keep = if comps.len() > 2 && comps[1].as_os_str().to_str().is_some_and(|v| v.starts_with("volume")) { 3 } else { 2 };
+    #[cfg(windows)]
+    let keep = 2;
+    if comps.len() <= keep {
+        return None;
+    }
+    let top: PathBuf = comps[..keep].iter().collect();
+    Some(top.join(FALLBACK_BIN))
+}
+
+pub const FALLBACK_BIN: &str = "Turks Recycle Bin";
+
+fn keep_in_fallback_bin(path: &Path) -> Result<(), String> {
+    let Some(bin) = fallback_bin(path) else {
+        return Err(format!("Nowhere safe to keep {}; left it in place", path.display()));
+    };
+    let rel = path.strip_prefix(bin.parent().unwrap_or(Path::new("/"))).unwrap_or(path);
+    let mut dest = bin.join(rel);
+    if dest.exists() {
+        dest = PathBuf::from(format!("{}.{}", dest.display(), Utc::now().timestamp()));
+    }
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    transfer(path, &dest, Transfer::Move).map(|_| ())?;
+    let _ = filetime_now(&dest);
+    Ok(())
 }
 
 /// The Synology shared folder's recycle bin (/volumeN/share/#recycle), when
@@ -281,10 +318,6 @@ pub fn share_recycle_dir(path: &Path) -> Option<PathBuf> {
     let share = parts.next()?.as_os_str();
     let bin = Path::new("/").join(volume).join(share).join("#recycle");
     bin.is_dir().then_some(bin)
-}
-
-fn delete_for_good(path: &Path) -> Result<(), String> {
-    if path.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) }.map_err(|e| e.to_string())
 }
 
 fn filetime_now(p: &Path) -> std::io::Result<()> {
@@ -779,6 +812,15 @@ fn Regex_tmdb(name: &str) -> i64 {
 
 #[cfg(test)]
 mod loose_tests {
+    #[cfg(not(windows))]
+    #[test]
+    fn fallback_bin_sits_at_the_top_of_the_share() {
+        use super::fallback_bin;
+        assert_eq!(fallback_bin(Path::new("/volume1/Movies/Suspense/Hypnotic (2023).mp4")), Some(PathBuf::from("/volume1/Movies/Turks Recycle Bin")));
+        assert_eq!(fallback_bin(Path::new("/home/me/movies/a.mkv")), Some(PathBuf::from("/home/Turks Recycle Bin")));
+        assert_eq!(fallback_bin(Path::new("/a.mkv")), None);
+    }
+
     use super::*;
 
     fn touch(p: &Path) {

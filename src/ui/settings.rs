@@ -214,7 +214,7 @@ impl App {
             w::section_help(ui, "Files", "");
             ch |= toggle_row(ui, "Rename movies", "Give imported files tidy names like 'Movie (2010) Bluray-1080p'. Off keeps the downloaded file name.", &mut c.rename_movies);
             ch |= toggle_row(ui, "Use hardlinks instead of copy", "For torrents on the same drive: the movie appears in your library without using extra space, and keeps seeding.", &mut c.use_hardlinks);
-            ch |= w::row(ui, "Recycle bin", "Where deleted and replaced files go. Leave empty to use the Windows Recycle Bin (files on a network drive, which has none, are deleted for good).", |ui| w::folder_field(ui, &mut c.recycle_bin, 220.0));
+            ch |= w::row(ui, "Recycle bin", "Where deleted and replaced files go. Leave empty to use the Windows Recycle Bin (files on a network drive, which has none, go to a Turks Recycle Bin folder at the top of that drive).", |ui| w::folder_field(ui, &mut c.recycle_bin, 220.0));
             if ch {
                 self.changed();
             }
@@ -265,7 +265,7 @@ impl App {
             });
             changed
         });
-        ch |= w::row(ui, "Recycle bin", "Where deleted and replaced files go. Leave empty to use the Windows Recycle Bin (files on a network drive, which has none, are deleted for good).", |ui| w::folder_field(ui, &mut c.recycle_bin, 220.0));
+        ch |= w::row(ui, "Recycle bin", "Where deleted and replaced files go. Leave empty to use the Windows Recycle Bin (files on a network drive, which has none, go to a Turks Recycle Bin folder at the top of that drive).", |ui| w::folder_field(ui, &mut c.recycle_bin, 220.0));
         ch |= num_row(ui, "Recycle bin cleanup", "Delete files from the recycle bin after this many days (0 = never).", &mut c.recycle_bin_cleanup_days, 0..=365, " days");
         if adv {
             ch |= toggle_row(ui, "Create empty movie folders", "Make a folder for each movie as soon as it's added.", &mut c.create_empty_folders);

@@ -94,7 +94,7 @@ async function sMedia(body, advanced) {
       ...head("Files"),
       cToggle("rename_movies", "Rename movies", "Give imported files tidy names like 'Movie (2010) Bluray-1080p'. Off keeps the downloaded file name."),
       cToggle("use_hardlinks", "Use hardlinks instead of copy", "For torrents on the same volume: the movie appears in your library without using extra space, and keeps seeding."),
-      cPath("recycle_bin", "Recycle bin", "Where deleted and replaced files go. Leave empty to use the shared folder\'s own recycle bin (#recycle); if that\'s turned off for the share, files are deleted for good."));
+      cPath("recycle_bin", "Recycle bin", "Where deleted and replaced files go. Leave empty to use the shared folder\'s own recycle bin (#recycle); if that\'s turned off for the share, they go to a Turks Recycle Bin folder at the top of the share."));
     return;
   }
   add(body, 
@@ -117,7 +117,7 @@ async function sMedia(body, advanced) {
     ...head("File management", "Upgrades, deletions and the recycle bin."),
     cToggle("unmonitor_deleted_movies", "Unmonitor deleted movies", "When a movie's file disappears from disk, stop monitoring it so it isn't downloaded again."),
     cSelect("propers", "Propers and repacks", "", Turks.meta.propers.map((p) => [p.value, p.label])),
-    cPath("recycle_bin", "Recycle bin", "Where deleted and replaced files go. Leave empty to use the shared folder\'s own recycle bin (#recycle); if that\'s turned off for the share, files are deleted for good."),
+    cPath("recycle_bin", "Recycle bin", "Where deleted and replaced files go. Leave empty to use the shared folder\'s own recycle bin (#recycle); if that\'s turned off for the share, they go to a Turks Recycle Bin folder at the top of the share."),
     cNum("recycle_bin_cleanup_days", "Recycle bin cleanup", "Delete files from the recycle bin after this many days (0 = never).", "days", 0, 365),
     advanced ? cToggle("create_empty_folders", "Create empty movie folders", "Make a folder for each movie as soon as it's added.") : null,
     advanced ? cToggle("delete_empty_folders", "Delete empty folders", "Remove download folders left empty after an import.") : null,
