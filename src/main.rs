@@ -56,6 +56,7 @@ use eframe::egui;
 
 #[cfg(feature = "nas")]
 fn main() {
+    core::install_panic_hook();
     nas::main();
 }
 
@@ -66,6 +67,7 @@ fn main() {
 
 #[cfg(feature = "gui")]
 fn main() -> eframe::Result<()> {
+    core::install_panic_hook();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let start_hidden = args.iter().any(|a| a == "--tray");
     let after_update = args.iter().any(|a| a == updater::AFTER_UPDATE_ARG);

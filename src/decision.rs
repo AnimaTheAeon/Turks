@@ -201,6 +201,12 @@ pub fn quality_cutoff_not_met(p: &QualityProfile, current: &QualityModel, new: O
 }
 
 pub fn cutoff_not_met(p: &QualityProfile, current: &QualityModel, current_formats: &[Id], new: Option<&QualityModel>) -> bool {
+    // "Upgrades off" means a file you have is never replaced. Radarr still replaces files
+    // whose quality it can't tell (a plain "Movie.mp4" counts as Unknown, below anything
+    // allowed), which swapped people's copies for huge or foreign releases.
+    if !p.upgrade_allowed {
+        return false;
+    }
     quality_cutoff_not_met(p, current, new) || p.score_of(current_formats) < p.cutoff_format_score
 }
 
@@ -681,6 +687,17 @@ mod tests {
         assert!(ita.rejections.iter().any(|r| r.reason.contains("comes first")), "{:?} {:?}", ita.parsed.languages, ita.rejections);
         let eng = check("The.Matrix.1999.1080p.BluRay.x264-GRP");
         assert!(eng.approved(), "{:?}", eng.rejections);
+    }
+
+    #[test]
+    fn upgrades_off_never_replaces_a_file() {
+        let mut p = crate::quality::default_profile("Any", crate::quality::id::BLURAY1080P, &[crate::quality::id::WEBDL1080P, crate::quality::id::BLURAY1080P]);
+        p.upgrade_allowed = false;
+        let unknown = QualityModel { quality: crate::quality::id::UNKNOWN, ..Default::default() };
+        let better = QualityModel { quality: crate::quality::id::BLURAY1080P, ..Default::default() };
+        assert!(!cutoff_not_met(&p, &unknown, &[], Some(&better)), "a Movie.mp4 of unknown quality must not be replaced when upgrades are off");
+        p.upgrade_allowed = true;
+        assert!(cutoff_not_met(&p, &unknown, &[], Some(&better)), "with upgrades on it may be");
     }
 
     #[test]

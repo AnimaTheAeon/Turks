@@ -105,6 +105,34 @@ pub struct ScheduledTask {
     pub last_duration: Option<Duration>,
 }
 
+/// The message of a caught panic, plus where it happened (recorded by the panic hook).
+pub fn panic_text(payload: &Box<dyn std::any::Any + Send>) -> String {
+    let msg = payload
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+        .unwrap_or_else(|| "unknown error".into());
+    match LAST_PANIC_AT.lock().ok().and_then(|g| g.clone()) {
+        Some(at) => format!("{msg} (at {at})"),
+        None => msg,
+    }
+}
+
+static LAST_PANIC_AT: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Remember where panics happen so a caught one can say where it was.
+pub fn install_panic_hook() {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Some(l) = info.location() {
+            if let Ok(mut g) = LAST_PANIC_AT.lock() {
+                *g = Some(format!("{}:{}", l.file(), l.line()));
+            }
+        }
+        default(info);
+    }));
+}
+
 /// Results of an interactive search, kept until the next one.
 #[derive(Clone, Debug, Default)]
 #[allow(dead_code)]
@@ -343,9 +371,17 @@ impl Core {
                         crate::applog::error(format!("{} failed: {e}", cmd.label()));
                         (true, e)
                     }
-                    Err(_) => {
-                        crate::applog::error(format!("{} crashed", cmd.label()));
-                        (true, "Crashed; see the log".into())
+                    Err(payload) => {
+                        let why = panic_text(&payload);
+                        crate::applog::error(format!("{} crashed: {why}", cmd.label()));
+                        // A crashed interactive search must still finish, or its page waits forever.
+                        if let Command::InteractiveSearch(movie) = &cmd {
+                            core.status().interactive.insert(
+                                *movie,
+                                InteractiveResult { running: false, errors: vec![format!("The search crashed: {why}")], finished: Some(Utc::now()), ..Default::default() },
+                            );
+                        }
+                        (true, format!("Crashed: {why}"))
                     }
                 };
                 {

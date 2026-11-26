@@ -58,7 +58,11 @@ fn query(core: &Core, indexers: Vec<Indexer>, movie: Option<&Movie>) -> (Vec<Rel
         match h.join() {
             Ok(Ok(v)) => out.extend(v),
             Ok(Err(e)) => errors.push(e),
-            Err(_) => errors.push("An indexer search crashed".into()),
+            Err(payload) => {
+                let why = crate::core::panic_text(&payload);
+                crate::applog::error(format!("An indexer search crashed: {why}"));
+                errors.push(format!("An indexer search crashed: {why}"));
+            }
         }
     }
     // Same release from two indexers: keep the higher priority one.
