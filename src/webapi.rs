@@ -191,7 +191,7 @@ fn to<T: DeserializeOwned>(v: Value) -> Result<T, String> {
     serde_json::from_value(v).map_err(|e| format!("Bad request: {e}"))
 }
 
-fn handle(core: Core, mut req: Request, cache: AuthCache) {
+fn handle(core: Core, req: Request, cache: AuthCache) {
     let q = query(req.url());
     let route = q.get("r").cloned().unwrap_or_default();
     let cookie = header(&req, "X-Turks-Cookie");
@@ -200,6 +200,13 @@ fn handle(core: Core, mut req: Request, cache: AuthCache) {
     if let Err(message) = authenticate(&cookie, &token, &remote, &cache) {
         return respond(req, 401, json!({ "error": message }));
     }
+    handle_signed_in(core, req, &route, q);
+}
+
+/// A request whose sender is already known to be allowed in: from the DSM
+/// window (checked above) or from the web page's sign-in (`nas::webpage`).
+pub fn handle_signed_in(core: Core, mut req: Request, route: &str, q: HashMap<String, String>) {
+    let route = route.to_string();
     let post = *req.method() == Method::Post;
     let mut body = String::new();
     if post {
@@ -240,6 +247,16 @@ fn b(v: &Value, key: &str) -> bool {
 
 fn i(v: &Value, key: &str) -> i64 {
     v.get(key).and_then(|x| x.as_i64()).unwrap_or(0)
+}
+
+/// Settings as the page sees them: the web page's password hash stays on the NAS.
+fn public_cfg(cfg: &Config) -> Value {
+    let mut v = json!(cfg);
+    if let Some(o) = v.as_object_mut() {
+        o.remove("web_pass");
+        o.insert("web_pass_set".into(), json!(!cfg.web_pass.is_empty()));
+    }
+    v
 }
 
 // ------------------------------------------------------------------ generic records
@@ -425,12 +442,56 @@ fn route_request(core: &Core, post: bool, route: &str, q: &HashMap<String, Strin
         }
 
         // --- settings
-        (false, "config") => ok(json!(core.cfg())),
+        (false, "config") => ok(public_cfg(&core.cfg())),
+        #[cfg(feature = "nas")]
+        (false, "weblogin") => {
+            let cfg = core.cfg();
+            // The NAS's address on the home network (no traffic is sent).
+            let lan = std::net::UdpSocket::bind("0.0.0.0:0")
+                .and_then(|u| u.connect("192.0.2.1:80").map(|_| u))
+                .and_then(|u| u.local_addr())
+                .map(|a| a.ip().to_string())
+                .unwrap_or_default();
+            ok(json!({
+                "web_user": cfg.web_user,
+                "web_pass_set": !cfg.web_pass.is_empty(),
+                "lan": lan,
+                "port": cfg.api_port,
+                "reachable": cfg.api_enabled && cfg.api_bind_all,
+            }))
+        }
+        #[cfg(feature = "nas")]
+        (true, "weblogin") => {
+            let (user, pass) = (s(&v, "user").trim().to_string(), s(&v, "pass").to_string());
+            let mut cfg = core.cfg();
+            if user.is_empty() {
+                // Turning the web page's sign-in off.
+                cfg.web_user.clear();
+                cfg.web_pass.clear();
+            } else {
+                if pass.is_empty() && cfg.web_pass.is_empty() {
+                    return Err("Choose a password.".into());
+                }
+                if !pass.is_empty() {
+                    if pass.chars().count() < 6 {
+                        return Err("Use at least 6 characters for the password.".into());
+                    }
+                    cfg.web_pass = crate::nas::webpage::hash_password(&pass);
+                }
+                cfg.web_user = user;
+            }
+            core.set_cfg(cfg.clone());
+            ok(json!({ "web_user": cfg.web_user, "web_pass_set": !cfg.web_pass.is_empty() }))
+        }
         (true, "config") => {
             // Merge what the window sent over the current settings.
             let mut cur = serde_json::to_value(core.cfg()).unwrap_or_default();
             if let (Some(c), Some(n)) = (cur.as_object_mut(), v.as_object()) {
                 for (k, val) in n {
+                    // The web sign-in is changed only through "weblogin".
+                    if k == "web_user" || k == "web_pass" || k == "web_pass_set" {
+                        continue;
+                    }
                     c.insert(k.clone(), val.clone());
                 }
             }
@@ -438,7 +499,7 @@ fn route_request(core: &Core, post: bool, route: &str, q: &HashMap<String, Strin
             let ports_changed = { let o = core.cfg(); o.api_port != cfg.api_port || o.api_bind_all != cfg.api_bind_all || o.api_enabled != cfg.api_enabled };
             core.set_cfg(cfg.clone());
             core.update_task_intervals();
-            ok(json!({ "config": cfg, "restart_needed": ports_changed }))
+            ok(json!({ "config": public_cfg(&cfg), "restart_needed": ports_changed }))
         }
         (true, "config/apikey") => {
             let mut cfg = core.cfg();

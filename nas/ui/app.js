@@ -1,6 +1,7 @@
 "use strict";
 /* Turks for DSM — the window. Talks to the Turks service through api.cgi
-   with the DSM session (cookie + SynoToken). Pages live in the other .js
+   with the DSM session (cookie + SynoToken), or, as its own web page at
+   http://<nas>:7878, with Turks's own sign-in cookie. Pages live in the other .js
    files and register themselves on Turks.pages. */
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -59,7 +60,11 @@ const menuOf = (page) => (page === "discover" || page === "collections" ? "add" 
 
 // ---------------------------------------------------------------- API
 
+/** Opened from a browser at http://<nas>:7878 instead of inside DSM: Turks's own sign-in. */
+const WEB_PAGE = !location.pathname.startsWith("/webman/");
+
 async function getToken() {
+  if (WEB_PAGE) return;
   try {
     const r = await fetch("/webman/login.cgi", { credentials: "same-origin" });
     const j = await r.json();
@@ -87,6 +92,11 @@ async function api(route, body, params) {
   try { res = await fetch(apiUrl(route, params), opts); } catch (e) { throw new Error("Couldn't reach Turks"); }
   let data = {};
   try { data = await res.json(); } catch (e) { /* empty */ }
+  if (res.status === 401 && WEB_PAGE) {
+    // Signed out (or the password changed): the page itself shows the sign-in.
+    location.reload();
+    throw new Error("auth");
+  }
   if (res.status === 401) {
     showOverlay("Sign in needed", esc(data.error || "Your DSM session has expired. Sign in to DSM again."));
     throw new Error(data.error || "auth");

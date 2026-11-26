@@ -84,6 +84,14 @@ fn handle(core: Core, mut req: Request) {
     let path_full = url.split('?').next().unwrap_or("").trim_end_matches('/').to_string();
     let base = cfg.url_base.trim().trim_end_matches('/');
     let path = path_full.strip_prefix(base).unwrap_or(&path_full).to_lowercase();
+    // On the NAS, everything that isn't the Radarr API is Turks's own web page.
+    #[cfg(feature = "nas")]
+    {
+        let page_path = path_full.strip_prefix(base).unwrap_or(&path_full).to_string();
+        if crate::nas::webpage::wants(&page_path) {
+            return crate::nas::webpage::handle(core, req, &page_path, base);
+        }
+    }
     let q = query_params(&url);
     let param = |k: &str| q.iter().find(|(kk, _)| kk == k).map(|(_, v)| v.clone());
 

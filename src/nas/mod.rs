@@ -7,6 +7,7 @@
 
 pub mod cgi;
 pub mod update;
+pub mod webpage;
 
 use crate::{applog, config, core, notify, APP_VERSION};
 

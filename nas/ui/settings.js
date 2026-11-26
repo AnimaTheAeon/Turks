@@ -438,6 +438,7 @@ async function sGeneral(body, advanced) {
     tmdbMsg,
     advanced ? cText("metadata_language", "Metadata language", "Language for titles and overviews (e.g. en, de, fr, pt-BR).") : null,
     advanced ? cText("certification_country", "Certification country", "Country for age ratings and release dates (e.g. US, GB, DE).") : null,
+    ...webPageSection(),
     ...head("API", "Lets Prowlarr, Overseerr/Jellyseerr and other apps talk to Turks the way they'd talk to Radarr."),
     cToggle("api_enabled", "Enable API", "Changes take effect after a restart."),
     cNum("api_port", "Port", "7878 is Radarr's port; change it if Radarr is also running on this NAS.", "", 1024, 65535),
@@ -465,6 +466,56 @@ async function sGeneral(body, advanced) {
     ] : []),
   );
   updatePanel(update);
+}
+
+/** Turks's own web page: its address and the sign-in for it. */
+function webPageSection() {
+  const box = el("div");
+  const user = el("input", { type: "text", value: Turks.cfg.web_user || "", autocomplete: "off", placeholder: "Username", style: { width: "200px" } });
+  const pass = el("input", { type: "password", autocomplete: "new-password", style: { width: "200px" } });
+  const msg = el("div.notice.hidden");
+  const show = (cls, text) => { msg.className = "notice " + cls; msg.textContent = text; };
+  const fill = (w) => {
+    pass.placeholder = w.web_pass_set ? "Unchanged" : "Password (6+ characters)";
+    // Only a home-network address; otherwise the one this page was opened with.
+    const host = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(w.lan || "") ? w.lan : location.hostname;
+    const url = `http://${host}:${w.port}`;
+    const link = w.web_pass_set && w.web_user ? el("a", { href: url, target: "_blank", rel: "noopener" }, url) : el("span.mono", url);
+    box.replaceChildren(
+      el("div.dim.small", "Address on your home network: ", link, w.web_pass_set && w.web_user ? "" : " (choose a username and password first)"),
+      w.reachable ? null : el("div.notice.bad", "The web page uses the API's port. Turn on 'Enable API' and 'Allow other computers' below, then restart Turks."),
+    );
+  };
+  const save = async () => {
+    const u = user.value.trim();
+    if (!u) return show("bad", "Choose a username.");
+    if (!pass.value && !Turks.cfg.web_pass_set) return show("bad", "Choose a password.");
+    const r = await act("weblogin", { user: u, pass: pass.value });
+    if (!r) return;
+    Turks.cfg.web_user = r.web_user; Turks.cfg.web_pass_set = r.web_pass_set;
+    pass.value = "";
+    show("good", WEB_PAGE ? "Saved. Sign in again with the new details." : "Saved. Browsers signed in before have to sign in again.");
+    load();
+    if (WEB_PAGE) setTimeout(() => location.reload(), 1200);
+  };
+  const turnOff = async () => {
+    if (!await confirmBox("Turn off the web page's sign-in?", "Nobody can use Turks from the web page until a new username and password are set. The DSM window keeps working.", "Turn off", true)) return;
+    const r = await act("weblogin", { user: "", pass: "" });
+    if (!r) return;
+    Turks.cfg.web_user = ""; Turks.cfg.web_pass_set = false;
+    user.value = ""; show("good", "The web page's sign-in is off.");
+    if (WEB_PAGE) setTimeout(() => location.reload(), 1200); else load();
+  };
+  const load = async () => { try { fill(await api("weblogin")); } catch (e) { /* shown by api() */ } };
+  load();
+  return [
+    ...head("Web page", "Use Turks in any browser on your home network, without opening DSM. It's the same page, with its own sign-in."),
+    box,
+    field("Sign-in", "Changing these signs out every browser.", [user, pass, el("button", { onclick: save }, "Save"),
+      Turks.cfg.web_pass_set ? el("button", { onclick: turnOff }, "Turn off") : null]),
+    msg,
+    WEB_PAGE ? field("This browser", "", el("button", { onclick: () => { location.href = "logout"; } }, "Sign out")) : null,
+  ];
 }
 
 /** Update status + the DSM Task Scheduler instructions. */
