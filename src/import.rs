@@ -180,13 +180,21 @@ pub fn transfer(src: &Path, dst: &Path, mode: Transfer) -> Result<&'static str, 
     match mode {
         Transfer::InPlace => Ok("in place"),
         Transfer::HardlinkOrCopy => {
-            if same_volume(src, dst) && std::fs::hard_link(src, dst).is_ok() {
+            // Just try it: separate shared folders on a Synology (each its own
+            // btrfs subvolume) report different devices even on one volume.
+            if std::fs::hard_link(src, dst).is_ok() {
                 return Ok("hardlinked");
+            }
+            if reflink(src, dst) {
+                return Ok("reflinked");
             }
             copy_verified(src, dst)?;
             Ok("copied")
         }
         Transfer::Copy => {
+            if reflink(src, dst) {
+                return Ok("reflinked");
+            }
             copy_verified(src, dst)?;
             Ok("copied")
         }
@@ -194,11 +202,41 @@ pub fn transfer(src: &Path, dst: &Path, mode: Transfer) -> Result<&'static str, 
             if std::fs::rename(src, dst).is_ok() {
                 return Ok("moved");
             }
+            if reflink(src, dst) {
+                std::fs::remove_file(src).map_err(|e| format!("Copied, but couldn't remove the original: {e}"))?;
+                return Ok("moved");
+            }
             copy_verified(src, dst)?;
             std::fs::remove_file(src).map_err(|e| format!("Copied, but couldn't remove the original: {e}"))?;
             Ok("moved")
         }
     }
+}
+
+/// A copy that shares the file's data on disk (btrfs, as on a Synology): done
+/// at once and takes no extra space, yet it's a separate file, so the torrent
+/// can be deleted later without touching the library. Works between shared
+/// folders, where hardlinks can't. False when the drive can't do it.
+#[cfg(feature = "nas")]
+fn reflink(src: &Path, dst: &Path) -> bool {
+    use std::os::unix::io::AsRawFd;
+    const FICLONE: libc::c_ulong = 0x4004_9409;
+    let tmp = dst.with_extension("partial~");
+    let Ok(from) = std::fs::File::open(src) else { return false };
+    let Ok(to) = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp) else { return false };
+    let ok = unsafe { libc::ioctl(to.as_raw_fd(), FICLONE as _, from.as_raw_fd()) } == 0;
+    drop(to);
+    let same = ok && std::fs::metadata(src).map(|m| m.len()).ok() == std::fs::metadata(&tmp).map(|m| m.len()).ok();
+    if same && std::fs::rename(&tmp, dst).is_ok() {
+        return true;
+    }
+    let _ = std::fs::remove_file(&tmp);
+    false
+}
+
+#[cfg(not(feature = "nas"))]
+fn reflink(_src: &Path, _dst: &Path) -> bool {
+    false
 }
 
 fn copy_verified(src: &Path, dst: &Path) -> Result<(), String> {

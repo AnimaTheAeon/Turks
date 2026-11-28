@@ -175,7 +175,7 @@ pub fn sync_all(core: &Core, cid: u64) -> Result<String, String> {
                 continue;
             }
             let opts = AddOptions {
-                genre_folder: String::new(),
+                genre_folder: crate::library::AUTO_GENRE.into(),
                 existing: None,
                 root_folder: list.root_folder.clone(),
                 quality_profile_id: list.quality_profile_id,

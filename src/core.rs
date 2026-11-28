@@ -515,6 +515,15 @@ impl Core {
 
     /// Starts the scheduler and the API server.
     pub fn start(&self) {
+        if !self.cfg().genre_fix_done {
+            let moved = crate::library::regenre_waiting(self);
+            if moved > 0 {
+                crate::applog::info(format!("Pointed {moved} movie(s) still waiting for a file at their genre folder"));
+            }
+            let mut cfg = self.cfg();
+            cfg.genre_fix_done = true;
+            self.set_cfg(cfg);
+        }
         let core = self.clone();
         std::thread::Builder::new()
             .name("scheduler".into())

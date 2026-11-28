@@ -92,6 +92,8 @@ pub struct Config {
     pub web_user: String,
     /// "salt:sha256(salt + password)", never the password itself.
     pub web_pass: String,
+    /// Movies added by other apps before 0.5.29 were checked for their genre folder.
+    pub genre_fix_done: bool,
     pub backup_dir: String,
     pub backup_interval_days: i64,
     pub backup_retention_days: i64,
@@ -197,6 +199,7 @@ impl Default for Config {
             url_base: String::new(),
             web_user: String::new(),
             web_pass: String::new(),
+            genre_fix_done: false,
             backup_dir: data_dir().join("Backups").display().to_string(),
             backup_interval_days: 7,
             backup_retention_days: 28,

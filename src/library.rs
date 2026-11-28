@@ -15,6 +15,8 @@ pub struct AddOptions {
     pub root_folder: String,
     /// A folder inside the root folder (e.g. "Horror") to keep the movie in
     /// as a loose file, with no folder of its own. Empty: its own folder.
+    /// `AUTO_GENRE`: the genre folder that fits the movie, when the root
+    /// folder is sorted into genre folders (else its own folder).
     pub genre_folder: String,
     /// Library Import: the movie already lives here (its folder, or for a
     /// loose movie its shared folder). Nothing is created or moved.
@@ -27,6 +29,53 @@ pub struct AddOptions {
 }
 
 /// Adds a movie by TMDb id. Returns the new movie (or the existing one).
+/// Movies added without anyone picking a folder (other apps, lists,
+/// collections) go to the genre folder that fits them.
+pub const AUTO_GENRE: &str = "*";
+
+/// The genre folder for a movie in a root folder sorted by genre: the one
+/// matching its genres, else an "Other"/"Misc" folder. None when the root
+/// folder isn't sorted by genre or nothing fits.
+pub fn auto_genre_folder(core: &Core, root: &str, genres: &[String]) -> Option<String> {
+    let folders = crate::import::group_folders(&core.lib(), Path::new(root));
+    if folders.is_empty() {
+        return None;
+    }
+    crate::tmdb::suggest_genre_folder(genres, &folders).or_else(|| {
+        folders.iter().find(|f| matches!(f.to_lowercase().as_str(), "other" | "others" | "misc" | "miscellaneous")).cloned()
+    })
+}
+
+/// Before 0.5.29, movies added by other apps or lists got a folder of their
+/// own even in a root folder sorted by genre. Point the ones that have no
+/// file yet at their genre folder instead (nothing on disk moves, apart from
+/// removing the empty folder made for them). Returns how many changed.
+pub fn regenre_waiting(core: &Core) -> usize {
+    let waiting: Vec<Movie> = core
+        .lib()
+        .movies
+        .values()
+        .filter(|m| !m.loose && m.movie_file_id.is_none() && !m.root_folder.is_empty() && Path::new(&m.path).parent() == Some(Path::new(&m.root_folder)))
+        .cloned()
+        .collect();
+    let mut n = 0;
+    for mut m in waiting {
+        let Some(genre) = auto_genre_folder(core, &m.root_folder, &m.genres) else { continue };
+        let own = Path::new(&m.path).to_path_buf();
+        // Only an empty folder; anything in it stays put.
+        if own.is_dir() && std::fs::read_dir(&own).map(|mut d| d.next().is_some()).unwrap_or(true) {
+            continue;
+        }
+        let _ = std::fs::remove_dir(&own);
+        m.path = Path::new(&m.root_folder).join(&genre).display().to_string();
+        m.loose = true;
+        crate::applog::info(format!("{} will go in {}", m.display(), m.path));
+        core.save(m);
+        n += 1;
+    }
+    n
+}
+
 pub fn add_movie(core: &Core, tmdb_id: i64, opts: &AddOptions) -> Result<Movie, String> {
     if let Some(m) = core.lib().movie_by_tmdb(tmdb_id) {
         return Ok(m.clone());
@@ -40,7 +89,8 @@ pub fn add_movie(core: &Core, tmdb_id: i64, opts: &AddOptions) -> Result<Movie, 
     movie.tags = opts.tags.clone();
     movie.added = Some(Utc::now());
     movie.last_info_sync = Some(Utc::now());
-    let genre = opts.genre_folder.trim().trim_matches(['/', '\\']);
+    let picked = if opts.genre_folder == AUTO_GENRE { auto_genre_folder(core, &opts.root_folder, &movie.genres).unwrap_or_default() } else { opts.genre_folder.clone() };
+    let genre = picked.trim().trim_matches(['/', '\\']);
     if let Some((path, loose)) = &opts.existing {
         movie.path = path.clone();
         movie.loose = *loose;
@@ -484,7 +534,7 @@ pub fn add_missing_from_collection(core: &Core, c: &MovieCollection) -> usize {
     }
     let excluded: Vec<i64> = core.lib().exclusions.values().map(|e| e.tmdb_id).collect();
     let opts = AddOptions {
-        genre_folder: String::new(),
+        genre_folder: AUTO_GENRE.into(),
         existing: None,
         root_folder: c.root_folder.clone(),
         quality_profile_id: c.quality_profile_id,
@@ -519,7 +569,7 @@ pub fn refresh_collections(core: &Core, cid: u64) -> Result<String, String> {
     let default_opts = {
         let lib = core.lib();
         AddOptions {
-            genre_folder: String::new(),
+            genre_folder: AUTO_GENRE.into(),
             existing: None,
             root_folder: lib.root_folders.values().next().map(|r| r.path.clone()).unwrap_or_default(),
             quality_profile_id: lib.profiles.keys().next().copied().unwrap_or(0),
